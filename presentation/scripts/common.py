@@ -52,22 +52,5 @@ HUATAI_DATA_DIR = _RESULTS_DIR / 'data'
 FIG_DIR = SCRIPT_DIR.parent / 'figures'
 PRESENTATION_DATA_DIR = SCRIPT_DIR.parent / 'data'
 
-# Apply the same rcParams as the existing pipeline
-plt.rcParams.update({
-    'font.family': 'serif',
-    'font.size': 10,
-    'axes.labelsize': 11,
-    'axes.titlesize': 12,
-    'legend.fontsize': 8,
-    'xtick.labelsize': 9,
-    'ytick.labelsize': 9,
-    'figure.figsize': (6.5, 4.0),
-    'figure.dpi': 300,
-    'savefig.dpi': 300,
-    'savefig.bbox': 'tight',
-    'lines.linewidth': 1.2,
-    'axes.grid': True,
-    'grid.alpha': 0.3,
-    'pdf.fonttype': 42,
-    'ps.fonttype': 42,
-})
+# rcParams are already set by the upstream plot_figures.py import (module-level).
+# No duplication here — common.py only adds infrastructure-figure colors and paths.

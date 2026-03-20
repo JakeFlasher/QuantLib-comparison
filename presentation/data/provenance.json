@@ -6,14 +6,20 @@
         "QuantLib_huatai/results/data/truncated_call_StandardCentral.csv",
         "QuantLib_huatai/results/data/truncated_call_reference.csv"
       ],
-      "ctest_verification": "oscillation_v123",
-      "parameters": {
+      "parameters_from_csv": {
         "sigma": 0.001,
         "r": 0.05,
+        "q": 0,
         "strike": 50,
         "upper_barrier": 70,
-        "maturity": "5/12",
-        "xGrid": 200
+        "maturity": 0.416667,
+        "xGrid": 2801,
+        "tGrid": 2801,
+        "mesh": "Uniform1dMesher"
+      },
+      "csv_derived_values": {
+        "negative_nodes": 139,
+        "min_price": -4.765082
       }
     },
     "fig2_three_scheme_truncated": {
@@ -24,14 +30,21 @@
         "QuantLib_huatai/results/data/truncated_call_MilevTaglianiCN.csv",
         "QuantLib_huatai/results/data/truncated_call_reference.csv"
       ],
-      "ctest_verification": "positivity_huatai",
-      "parameters": {
+      "parameters_from_csv": {
         "sigma": 0.001,
         "r": 0.05,
         "strike": 50,
         "upper_barrier": 70,
-        "maturity": "5/12",
-        "xGrid": 200
+        "maturity": 0.416667,
+        "xGrid": 2801,
+        "tGrid": 2801,
+        "reference_xGrid": 22408
+      },
+      "csv_derived_values": {
+        "SC_negative_nodes": 139,
+        "EF_negative_nodes": 0,
+        "MT_negative_nodes": 1,
+        "MT_min_price": -7.806e-123
       }
     },
     "fig3_barrier_moderate": {
@@ -43,15 +56,19 @@
         "QuantLib_huatai/results/data/barrier_moderate_vol_reference_ExponentialFitting.csv",
         "QuantLib_huatai/results/data/mc_barrier_moderate_vol.csv"
       ],
-      "ctest_verification": "discrete_barrier_huatai",
-      "parameters": {
+      "parameters_from_csv": {
         "strike": 100,
         "lower_barrier": 95,
         "upper_barrier": 110,
         "sigma": 0.25,
         "r": 0.05,
         "maturity": 0.5,
-        "n_monitoring": 5
+        "n_monitoring": 5,
+        "xGrid": 4000,
+        "tGrid": 2000
+      },
+      "csv_derived_values": {
+        "price_at_S100": 0.234058
       }
     },
     "fig4_barrier_lowvol": {
@@ -62,15 +79,22 @@
         "QuantLib_huatai/results/data/barrier_low_vol_MilevTaglianiCN.csv",
         "QuantLib_huatai/results/data/mc_barrier_low_vol.csv"
       ],
-      "ctest_verification": "discrete_barrier_huatai",
-      "parameters": {
+      "parameters_from_csv": {
         "strike": 100,
         "lower_barrier": 95,
         "upper_barrier": 110,
         "sigma": 0.001,
         "r": 0.05,
         "maturity": 1.0,
-        "n_monitoring": 5
+        "n_monitoring": 5,
+        "xGrid": 800,
+        "tGrid": 200
+      },
+      "csv_derived_values": {
+        "SC_negative_nodes": 52,
+        "SC_min_price": -1.968162,
+        "EF_negative_nodes": 0,
+        "MT_negative_nodes": 0
       }
     },
     "fig5_convergence": {
@@ -80,14 +104,14 @@
         "QuantLib_huatai/results/data/grid_convergence_ExponentialFitting.csv",
         "QuantLib_huatai/results/data/grid_convergence_MilevTaglianiCN.csv"
       ],
-      "ctest_verification": "positivity_huatai",
-      "parameters": {
+      "parameters_from_csv": {
         "strike": 100,
         "sigma": 0.20,
         "r": 0.05,
         "q": 0.02,
         "maturity": 1.0,
-        "xGrid_values": [25, 50, 100, 200, 400, 800, 1600]
+        "spot": 100,
+        "reference_price": 9.227006
       }
     },
     "fig6_effective_diffusion": {
@@ -97,11 +121,13 @@
         "QuantLib_huatai/results/data/effective_diffusion_ExponentialFitting.csv",
         "QuantLib_huatai/results/data/effective_diffusion_MilevTaglianiCN.csv"
       ],
-      "ctest_verification": "mmatrix_diagnostic_huatai",
-      "parameters": {
+      "parameters_from_csv": {
         "sigma": 0.001,
         "r": 0.05,
-        "xGrid": 200
+        "strike": 100,
+        "maturity": 1.0,
+        "xGrid": 200,
+        "mesh": "Uniform1dMesher"
       }
     },
     "fig7_mmatrix": {
@@ -111,12 +137,21 @@
         "QuantLib_huatai/results/data/mmatrix_offdiag_ExponentialFitting.csv",
         "QuantLib_huatai/results/data/mmatrix_offdiag_MilevTaglianiCN.csv"
       ],
-      "ctest_verification": "mmatrix_diagnostic_huatai",
-      "parameters": {
+      "parameters_from_csv": {
         "sigma": 0.001,
         "r": 0.05,
+        "strike": 100,
+        "maturity": 1.0,
         "xGrid": 200,
-        "mesh": "uniform log [ln(50), ln(150)]"
+        "mesh": "Uniform1dMesher"
+      },
+      "csv_derived_values": {
+        "SC_neg_lower_offdiags": 198,
+        "SC_min_lower": -3.578365,
+        "EF_neg_lower_offdiags": 198,
+        "EF_min_lower": -4.441e-16,
+        "MT_neg_lower_offdiags": 0,
+        "MT_min_lower": 308.922
       }
     },
     "fig8_benchmark": {
@@ -126,12 +161,13 @@
         "QuantLib_huatai/results/data/benchmark_ExponentialFitting.csv",
         "QuantLib_huatai/results/data/benchmark_MilevTaglianiCN.csv"
       ],
-      "ctest_verification": null,
-      "parameters": {
+      "parameters_from_csv": {
         "sigma": 0.20,
         "r": 0.05,
+        "q": 0.02,
         "strike": 100,
-        "maturity": 1.0
+        "maturity": 1.0,
+        "spot": 100
       }
     },
     "fig9_xcothx": {
@@ -139,9 +175,10 @@
       "data_sources": [
         "QuantLib_huatai/results/data/xcothx.csv"
       ],
-      "ctest_verification": null,
-      "parameters": {
-        "Pe_range": [-100, 100]
+      "parameters_from_csv": {
+        "experiment": "xcothx",
+        "xSmall": 1e-6,
+        "xLarge": 50
       }
     },
     "fig10_feature_matrix": {
@@ -149,7 +186,6 @@
       "data_sources": [
         "presentation/data/feature_matrix.json"
       ],
-      "ctest_verification": null,
       "original_source": "comparison_tests/phase4_analysis/feature_matrix.md"
     },
     "fig11_dependency_graph": {
@@ -157,74 +193,75 @@
       "data_sources": [
         "presentation/data/dependency_graph.json"
       ],
-      "ctest_verification": null,
       "original_source": "comparison_tests/phase4_analysis/backport_analysis.md"
     }
   },
+  "ctest_validation": {
+    "note": "CTest tests use coarser grids (N_x=200) than publication figures. They validate the same code paths at lower resolution for fast CI turnaround.",
+    "oscillation_v123": {
+      "statement": "v1.23 StandardCentral: 5 neg nodes, min V = -6.150 at N_x=200",
+      "source": "comparison_tests/results/comparison_report.md"
+    },
+    "positivity_huatai": {
+      "statement": "EF and MT: 0 neg nodes at sigma=0.001, N_x=200",
+      "source": "comparison_tests/results/comparison_report.md"
+    },
+    "discrete_barrier_huatai": {
+      "statement": "Low-vol SC: 58 neg nodes at N_x=200; EF/MT: 0",
+      "source": "comparison_tests/results/comparison_report.md"
+    },
+    "mmatrix_diagnostic_huatai": {
+      "statement": "SC: report.ok=false, negativeLower=198; EF: report.ok=true",
+      "source": "comparison_tests/results/comparison_report.md"
+    }
+  },
   "claims": {
-    "v123_oscillation": {
-      "statement": "v1.23 StandardCentral produces 5 negative interior nodes, min V = -6.14951",
-      "ctest": "oscillation_v123",
-      "source": "comparison_tests/results/comparison_report.md"
+    "csv_truncated_call_sc_negatives": {
+      "statement": "StandardCentral: 139 neg nodes, min V = -4.765 at xGrid=2801",
+      "source": "QuantLib_huatai/results/data/truncated_call_StandardCentral.csv"
     },
-    "lowvol_barrier_sc_negatives": {
-      "statement": "StandardCentral produces 58 negative nodes at low volatility",
-      "ctest": "discrete_barrier_huatai",
-      "source": "comparison_tests/results/comparison_report.md"
+    "csv_truncated_call_mt_min": {
+      "statement": "MilevTaglianiCN: 1 neg node at -7.8e-123 (machine precision) at xGrid=2801",
+      "source": "QuantLib_huatai/results/data/truncated_call_MilevTaglianiCN.csv"
     },
-    "ef_positivity": {
-      "statement": "ExponentialFitting: 0 negative nodes on truncated call and barrier",
-      "ctest": "positivity_huatai",
-      "source": "comparison_tests/results/comparison_report.md"
+    "csv_reference_grid": {
+      "statement": "Fine-grid reference: ExponentialFitting at xGrid=22408",
+      "source": "QuantLib_huatai/results/data/truncated_call_reference.csv"
     },
-    "mt_positivity": {
-      "statement": "MilevTaglianiCN: 0 negative nodes on truncated call and barrier",
-      "ctest": "positivity_huatai",
-      "source": "comparison_tests/results/comparison_report.md"
-    },
-    "mmatrix_sc_violations": {
-      "statement": "StandardCentral: 198 negative off-diagonal entries, min lower = -4.512",
-      "ctest": "mmatrix_diagnostic_huatai",
-      "source": "comparison_tests/results/comparison_report.md"
-    },
-    "mmatrix_ef_clean": {
-      "statement": "ExponentialFitting: 0 negative off-diagonals",
-      "ctest": "mmatrix_diagnostic_huatai",
-      "source": "comparison_tests/results/comparison_report.md"
-    },
-    "mt_min_value": {
-      "statement": "MilevTaglianiCN minimum V = 2.8e-53 on truncated call (strict positivity)",
-      "ctest": "positivity_huatai",
-      "source": "comparison_tests/results/comparison_report.md"
-    },
-    "finegrid_reference": {
-      "statement": "Fine-grid reference: ExponentialFitting at xGrid=6400 for accuracy comparison",
-      "ctest": "positivity_huatai",
-      "source": "comparison_tests/results/comparison_report.md"
-    },
-    "moderate_vol_price_agreement": {
-      "statement": "All 3 schemes produce identical prices at moderate vol (0.236266 at S=K=100, xGrid=2000)",
-      "ctest": "discrete_barrier_huatai",
+    "csv_barrier_mod_price": {
+      "statement": "Moderate-vol barrier price at S~100: 0.234 (xGrid=4000)",
       "source": "QuantLib_huatai/results/data/barrier_moderate_vol_StandardCentral.csv"
+    },
+    "csv_barrier_low_sc_negatives": {
+      "statement": "Low-vol barrier SC: 52 neg nodes, min V = -1.968 at xGrid=800",
+      "source": "QuantLib_huatai/results/data/barrier_low_vol_StandardCentral.csv"
+    },
+    "csv_mmatrix_sc_min_lower": {
+      "statement": "SC M-matrix: 198 neg lower off-diags, min = -3.578 at xGrid=200",
+      "source": "QuantLib_huatai/results/data/mmatrix_offdiag_StandardCentral.csv"
+    },
+    "csv_mmatrix_ef_near_zero": {
+      "statement": "EF M-matrix: 198 neg lower off-diags at machine precision (~4e-16)",
+      "source": "QuantLib_huatai/results/data/mmatrix_offdiag_ExponentialFitting.csv"
+    },
+    "csv_mmatrix_mt_positive": {
+      "statement": "MT M-matrix: 0 neg lower off-diags, min = 308.9",
+      "source": "QuantLib_huatai/results/data/mmatrix_offdiag_MilevTaglianiCN.csv"
     },
     "sc_diffusion_constant": {
       "statement": "StandardCentral effective diffusion sigma^2/2 = 5e-7 at sigma=0.001",
-      "ctest": null,
-      "source": "mathematical derivation from sigma=0.001"
+      "source": "mathematical derivation: (0.001)^2 / 2 = 5e-7"
     },
     "feature_matrix_summary": {
       "statement": "5 of 9 capabilities absent in v1.23, 3 partial, 1 native both",
-      "ctest": null,
       "source": "comparison_tests/phase4_analysis/feature_matrix.md"
     },
     "backport_scope": {
-      "statement": "Minimum backport requires 13 files, dependency depth 5",
-      "ctest": null,
+      "statement": "5 new files, 8 adapted, 13 total, dependency depth 5",
       "source": "comparison_tests/phase4_analysis/backport_analysis.md"
     },
     "full_test_suite": {
       "statement": "13/13 CTest entries pass",
-      "ctest": "all",
       "source": "comparison_tests/results/comparison_report.md"
     }
   }
