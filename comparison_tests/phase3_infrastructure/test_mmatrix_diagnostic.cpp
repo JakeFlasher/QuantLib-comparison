@@ -59,16 +59,8 @@ int main() {
 
         bool allPass = true;
 
-        // ── Test 1: Build StandardCentral operator, extract tridiag, run diagnostic ──
+        // ── Test 1: StandardCentral coefficients via checkOffDiagonalNonNegative ──
         {
-            FdmBlackScholesSpatialDesc desc;
-            desc.scheme = FdmBlackScholesSpatialDesc::Scheme::StandardCentral;
-            desc.mMatrixPolicy = FdmBlackScholesSpatialDesc::MMatrixPolicy::None;
-            auto op = ext::make_shared<FdmBlackScholesOp>(
-                mesher, process, K, false, -Null<Real>(), 0,
-                ext::shared_ptr<FdmQuantoHelper>(), desc);
-            op->setTime(0.0, dt);
-
             // Build a TripleBandLinearOp on the same mesher with StandardCentral
             // coefficients, then wrap in ModTripleBandLinearOp.
             // We compute coefficients analytically: for constant vol in log-space,

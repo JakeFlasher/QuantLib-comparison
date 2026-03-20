@@ -21,38 +21,14 @@
 #include <ql/methods/finitedifferences/stepconditions/fdmstepconditioncomposite.hpp>
 #include <ql/methods/finitedifferences/utilities/fdminnervaluecalculator.hpp>
 
+#include "../common/fdm_test_helpers.hpp"
+
 #include <iostream>
 #include <cmath>
 #include <vector>
 #include <iomanip>
 
 using namespace QuantLib;
-
-Array buildPayoff(const ext::shared_ptr<FdmMesher>& mesher,
-                  const ext::shared_ptr<Payoff>& payoff) {
-    Array rhs(mesher->layout()->size());
-    for (const auto& iter : *(mesher->layout()))
-        rhs[iter.index()] = (*payoff)(std::exp(mesher->location(iter, 0)));
-    return rhs;
-}
-
-Real valueAtSpot(const Array& rhs,
-                 const ext::shared_ptr<FdmMesher>& mesher,
-                 Real spot) {
-    const Real xT = std::log(spot);
-    const Size n = mesher->layout()->size();
-    for (Size i = 0; i < n - 1; ++i) {
-        Real x0 = mesher->location(
-            FdmLinearOpIterator(std::vector<Size>{n}, std::vector<Size>{i}, i), 0);
-        Real x1 = mesher->location(
-            FdmLinearOpIterator(std::vector<Size>{n}, std::vector<Size>{i+1}, i+1), 0);
-        if (x0 <= xT && xT <= x1) {
-            Real w = (xT - x0) / (x1 - x0);
-            return rhs[i] * (1 - w) + rhs[i+1] * w;
-        }
-    }
-    return 0.0;
-}
 
 struct Result { std::string name; Real price; Size negNodes; };
 
@@ -99,7 +75,7 @@ Result runBarrier(
         mesher, process, K, false, -Null<Real>(), Size(0),
         ext::shared_ptr<FdmQuantoHelper>(), desc);
 
-    Array rhs = buildPayoff(mesher, payoff);
+    Array rhs = buildPayoffOnMesh(mesher, payoff);
     FdmBackwardSolver solver(op, FdmBoundaryConditionSet(), conds,
                              FdmSchemeDesc::CrankNicolson());
     solver.rollback(rhs, T, 0.0, tGrid, 0);
@@ -108,7 +84,7 @@ Result runBarrier(
     for (Size i = 1; i < rhs.size() - 1; ++i)
         if (rhs[i] < -1e-10) ++neg;
 
-    return {name, valueAtSpot(rhs, mesher, K), neg};
+    return {name, interpolateOnMesh(rhs, mesher, K), neg};
 }
 
 int main() {

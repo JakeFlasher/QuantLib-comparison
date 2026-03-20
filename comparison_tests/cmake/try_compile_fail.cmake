@@ -12,7 +12,6 @@ execute_process(
         -o /dev/null
         -fsyntax-only
     RESULT_VARIABLE COMPILE_RESULT
-    OUTPUT_VARIABLE COMPILE_OUT
     ERROR_VARIABLE COMPILE_ERR
 )
 

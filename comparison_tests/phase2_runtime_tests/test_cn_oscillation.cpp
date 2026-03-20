@@ -22,6 +22,7 @@
 
 #include <iostream>
 #include <cmath>
+#include <limits>
 
 using namespace QuantLib;
 
@@ -89,13 +90,14 @@ int main() {
 
         // Inspect raw rollback array for negative values
         Size negativeCount = 0;
-        Real minV = 1e30;
-        Real maxV = -1e30;
+        Real minV = std::numeric_limits<Real>::max();
+        Real maxV = std::numeric_limits<Real>::lowest();
+        const Real negThreshold = -1e-10;
 
         for (Size i = 1; i < rhs.size() - 1; ++i) {
             minV = std::min(minV, rhs[i]);
             maxV = std::max(maxV, rhs[i]);
-            if (rhs[i] < -1e-10) ++negativeCount;
+            if (rhs[i] < negThreshold) ++negativeCount;
         }
 
         std::cout << "=== Truncated Call Oscillation Test (StandardCentral) ===" << std::endl;

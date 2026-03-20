@@ -20,6 +20,8 @@
 #include <ql/methods/finitedifferences/stepconditions/fdmstepconditioncomposite.hpp>
 #include <ql/methods/finitedifferences/utilities/fdmdirichletboundary.hpp>
 
+#include "../common/fdm_test_helpers.hpp"
+
 #include <iostream>
 #include <cmath>
 #include <string>
@@ -32,24 +34,6 @@ struct RunResult {
     Real minV;
     Real priceAtStrike;
 };
-
-Real interpolateAt(const Array& rhs,
-                   const ext::shared_ptr<FdmMesher>& mesher,
-                   Real spotLevel) {
-    const Real xT = std::log(spotLevel);
-    const Size n = rhs.size();
-    for (Size i = 0; i < n - 1; ++i) {
-        Real x0 = mesher->location(
-            FdmLinearOpIterator(std::vector<Size>{n}, std::vector<Size>{i}, i), 0);
-        Real x1 = mesher->location(
-            FdmLinearOpIterator(std::vector<Size>{n}, std::vector<Size>{i+1}, i+1), 0);
-        if (x0 <= xT && xT <= x1) {
-            Real w = (xT - x0) / (x1 - x0);
-            return rhs[i] * (1.0 - w) + rhs[i+1] * w;
-        }
-    }
-    return 0.0;
-}
 
 RunResult runTruncatedCall(
     Real sigma, Real r, Real K, Real U, Real T,
@@ -93,13 +77,9 @@ RunResult runTruncatedCall(
     FdmBackwardSolver solver(op, bcSet, conds, FdmSchemeDesc::CrankNicolson());
     solver.rollback(rhs, T, 0.0, tGrid, 0);
 
-    Size negCount = 0;
-    Real minV = 1e30;
-    for (Size i = 1; i < rhs.size() - 1; ++i) {
-        minV = std::min(minV, rhs[i]);
-        if (rhs[i] < -1e-10) ++negCount;
-    }
-    return {schemeName, negCount, minV, interpolateAt(rhs, mesher, K)};
+    auto stats = countNegativeInterior(rhs);
+    return {schemeName, stats.negativeCount, stats.minV,
+            interpolateOnMesh(rhs, mesher, K)};
 }
 
 int main() {
@@ -110,12 +90,11 @@ int main() {
         // ── Test 1: Positivity at low vol (same params as AC-1) ──
         std::cout << "=== Test 1: Positivity at sigma=0.001, xGrid=200 ===" << std::endl;
         {
-            FdmBlackScholesSpatialDesc stdD, expD, mtD;
-            stdD.scheme = FdmBlackScholesSpatialDesc::Scheme::StandardCentral;
+            auto stdD = FdmBlackScholesSpatialDesc::standard();
             stdD.mMatrixPolicy = FdmBlackScholesSpatialDesc::MMatrixPolicy::None;
-            expD.scheme = FdmBlackScholesSpatialDesc::Scheme::ExponentialFitting;
+            auto expD = FdmBlackScholesSpatialDesc::exponentialFitting();
             expD.mMatrixPolicy = FdmBlackScholesSpatialDesc::MMatrixPolicy::None;
-            mtD.scheme = FdmBlackScholesSpatialDesc::Scheme::MilevTaglianiCNEffectiveDiffusion;
+            auto mtD = FdmBlackScholesSpatialDesc::milevTaglianiCN();
             mtD.mMatrixPolicy = FdmBlackScholesSpatialDesc::MMatrixPolicy::None;
 
             auto std_ = runTruncatedCall(0.001, 0.05, 50.0, 70.0, 5.0/12.0, 200, 25, stdD, "StandardCentral");
@@ -139,10 +118,9 @@ int main() {
         // ── Test 2: Accuracy at moderate vol (sigma=0.20) ──
         std::cout << "\n=== Test 2: Accuracy at sigma=0.20, xGrid=800 ===" << std::endl;
         {
-            FdmBlackScholesSpatialDesc expD, mtD;
-            expD.scheme = FdmBlackScholesSpatialDesc::Scheme::ExponentialFitting;
+            auto expD = FdmBlackScholesSpatialDesc::exponentialFitting();
             expD.mMatrixPolicy = FdmBlackScholesSpatialDesc::MMatrixPolicy::None;
-            mtD.scheme = FdmBlackScholesSpatialDesc::Scheme::MilevTaglianiCNEffectiveDiffusion;
+            auto mtD = FdmBlackScholesSpatialDesc::milevTaglianiCN();
             mtD.mMatrixPolicy = FdmBlackScholesSpatialDesc::MMatrixPolicy::None;
 
             // Fine-grid reference
