@@ -1,100 +1,271 @@
-# <Plan Title>
+# QuantLib v1.23 vs QuantLib_huatai (1.42-dev): Systematic Comparison Demonstrating Infrastructure Necessity
 
 ## Goal Description
-<Clear, direct description of what needs to be accomplished>
+
+Demonstrate through systematic testing and analysis that stock QuantLib v1.23 does not natively support the nonstandard finite difference scheme research (Milev-Tagliani 2010, Duffy 2004) implemented in QuantLib_huatai (1.42-dev), and that the minimum credible backport substantially recapitulates the same module set and dependency structure as the research branch. The comparison evaluates three axes independently: **numerical capability** (can v1.23 compute the three spatial schemes?), **API integration** (can the research be wired into v1.23's FD framework?), and **build/toolchain compatibility** (can 1.42-dev code compile against v1.23?).
+
+### Research Context
+
+Three papers form the basis:
+1. **Milev & Tagliani (2010)** - "Nonstandard Finite Difference Schemes with Application to Finance: Option Pricing" (Serdica Math. J., Vol. 36, pp. 75-88)
+2. **Milev & Tagliani (2010)** - "Low Volatility Options and Numerical Diffusion of Finite Difference Schemes" (Serdica Math. J., Vol. 36, pp. 223-236)
+3. **Duffy (2004)** - "A Critique of the Crank-Nicolson Scheme" (Wilmott Magazine, Issue 4, pp. 68-76)
+
+Three spatial discretization schemes:
+1. **StandardCentral** - Baseline centered-difference Crank-Nicolson (oscillates in low-vol regime)
+2. **ExponentialFitting** (Duffy 2004) - Fitting factor `rho = x*coth(x)` adapts diffusion per Peclet number
+3. **MilevTaglianiCNEffectiveDiffusion** (Milev-Tagliani 2010) - Artificial diffusion `r^2*h^2/(8*sigma^2)` preserving M-matrix positivity
+
+### Gap Classification
+
+**Core Research Blockers** (absent in stock v1.23, required for paper replication):
+- `FdmBlackScholesSpatialDesc` + `setTime()` multi-path dispatch (scheme selection)
+- `xCothx()` numerically stable helper (`fdmhyperboliccot.hpp`)
+- `FdmDiscreteBarrierStepCondition` (discrete barrier monitoring class)
+- `FdmMMatrixReport` + `checkOffDiagonalNonNegative()` (M-matrix diagnostics)
+
+**Integration/Support Blockers** (absent or different, secondary evidence):
+- `FdBlackScholesBarrierEngine` discrete-monitoring constructors
+- `FdmBlackScholesMesher` multi-point `cPoints` constructor
+- `FdmBlackScholesSolver` CN-equivalence validation gate
+- `Disposable<>` API surface difference (note: `Disposable<T>` aliases to `T` by default in v1.23 unless `QL_USE_DISPOSABLE` is enabled; this is API-surface friction, not a hard compile barrier in default configuration)
+
+**Available in v1.23 (corrections from analysis)**:
+- `ModTripleBandLinearOp` exists in `ql/experimental/finitedifferences/` (band access available, but not on the main operator path)
+- `FdmBlackScholesMultiStrikeMesher` exists (multi-strike workaround, different interface from `cPoints`)
+- `FdmStepConditionComposite` is generic and can host new step conditions (the framework works; the specific barrier class is what's missing)
 
 ## Acceptance Criteria
 
 Following TDD philosophy, each criterion includes positive and negative tests for deterministic verification.
 
-- AC-1: <First criterion>
+### PRIMARY (gates the main conclusion)
+
+- AC-1: v1.23 StandardCentral oscillation detection
   - Positive Tests (expected to PASS):
-    - <Test case that should succeed when criterion is met>
-    - <Another success case>
+    - Price a truncated call with sigma=0.001, r=0.05, K=50, U=70, T=5/12, xGrid=200 on v1.23; at least 1 interior node has V < -1e-10
+    - The test program compiles and runs successfully on v1.23
   - Negative Tests (expected to FAIL):
-    - <Test case that should fail/be rejected when working correctly>
-    - <Another failure/rejection case>
-  - AC-1.1: <Sub-criterion if needed>
-    - Positive: <...>
-    - Negative: <...>
-- AC-2: <Second criterion>
-  - Positive Tests: <...>
-  - Negative Tests: <...>
-...
+    - Attempting to switch to ExponentialFitting scheme on v1.23 (no `FdmBlackScholesSpatialDesc` type exists)
+    - Achieving all-positive V values with StandardCentral under these parameters
+
+- AC-2: QuantLib_huatai nonstandard scheme positivity
+  - Positive Tests (expected to PASS):
+    - Same parameters as AC-1; ExponentialFitting produces V >= 0 at ALL interior nodes
+    - Same parameters as AC-1; MilevTaglianiCNEffectiveDiffusion produces V >= 0 at ALL interior nodes
+    - Both schemes produce prices within 1% of a fine-grid reference solution at the strike
+  - Negative Tests (expected to FAIL):
+    - StandardCentral under same parameters still produces negative nodes (confirms the problem exists even on 1.42-dev)
+    - A scheme producing V < -1e-10 at any interior node (nonstandard schemes must not do this)
+
+- AC-3: Discrete double barrier replication (Milev-Tagliani Example 4.1)
+  - Positive Tests (expected to PASS):
+    - On QuantLib_huatai: price discrete double barrier knock-out call (K=100, L=95, U=110, 5 monitoring dates) at sigma=0.25, T=0.5 using `FdmDiscreteBarrierStepCondition` + low-level solver; all three schemes produce finite positive prices
+    - On QuantLib_huatai: same at sigma=0.001, T=1.0; ExponentialFitting and MilevTaglianiCN produce all-positive grid values
+  - Negative Tests (expected to FAIL):
+    - On stock v1.23: `#include <ql/methods/finitedifferences/stepconditions/fdmdiscretebarrierstepcondition.hpp>` fails (file does not exist)
+    - On stock v1.23: constructing a discrete barrier step condition without adding the class from scratch
+    - On QuantLib_huatai at sigma=0.001: StandardCentral produces at least 1 node with V < 0 (M-matrix violation)
+
+- AC-4: M-matrix diagnostic infrastructure
+  - Positive Tests (expected to PASS):
+    - On QuantLib_huatai: `checkOffDiagonalNonNegative()` on StandardCentral at sigma=0.001, xGrid=200 returns `ok=false` with `negativeLower > 0` or `negativeUpper > 0`
+    - On QuantLib_huatai: same check on ExponentialFitting returns `ok=true`
+  - Negative Tests (expected to FAIL):
+    - On v1.23: `#include <ql/methods/finitedifferences/operators/fdmmatrixdiagnostic.hpp>` (file absent)
+    - On v1.23: calling any M-matrix validation function (no such function exists)
+
+- AC-5: Backport scope analysis
+  - Positive Tests (expected to PASS):
+    - Document identifies every file/module required for a minimal backport of the research kernel
+    - Each missing capability has: required files, dependency chain, transplant-vs-adaptation classification
+    - Conclusion demonstrates the minimum credible backport recapitulates the same module structure as the research branch
+  - Negative Tests (expected to FAIL):
+    - Finding a backport path that touches fewer than the core research files (spatial desc, operator, step condition, helper math, solver gating, mesher adaptation)
+    - Claiming a single-file patch enables the research on v1.23
+
+### SECONDARY (supporting evidence, does not gate conclusion)
+
+- AC-6: API surface difference demonstration
+  - Positive Tests (expected to PASS):
+    - Document the `Disposable<T>` aliasing behavior in v1.23 (defaults to `T` unless `QL_USE_DISPOSABLE` enabled)
+    - Show that with `QL_USE_DISPOSABLE` defined, v1.41-style `Array` returns cause signature mismatch against v1.23 base class `Disposable<Array>` returns
+    - Enumerate all API surface differences between v1.23 and 1.42-dev operator hierarchy
+  - Negative Tests (expected to FAIL):
+    - Claiming v1.41-style code is drop-in compatible with v1.23 across all configurations
+    - Compiling a v1.41-style operator subclass against v1.23 with `QL_USE_DISPOSABLE` enabled
+
+- AC-7: Feature matrix document
+  - Positive Tests (expected to PASS):
+    - Feature matrix classifies each capability as `native` / `absent` / `partial-workaround`
+    - All 9 capabilities from the gap classification are covered
+    - Classifications are backed by concrete file paths and evidence
+  - Negative Tests (expected to FAIL):
+    - Classifying ExponentialFitting or MilevTaglianiCN as `native` in v1.23
+    - Classifying `ModTripleBandLinearOp` as `absent` in v1.23 (it exists in experimental/)
+
+- AC-8: Build reproducibility
+  - Positive Tests (expected to PASS):
+    - All QuantLib_huatai tests pass with exit code 0
+    - All v1.23 absence tests correctly report missing files/types
+    - Both versions build via single CMake invocation
+  - Negative Tests (expected to FAIL):
+    - v1.23 absence tests succeeding (would mean the capability exists)
+    - QuantLib_huatai research tests failing (would indicate implementation bugs)
 
 ## Path Boundaries
 
-Path boundaries define the acceptable range of implementation quality and choices.
-
 ### Upper Bound (Maximum Acceptable Scope)
-<Affirmative description of the most comprehensive acceptable implementation>
-<This represents completing the goal without over-engineering>
-Example: "The implementation includes X, Y, and Z features with full test coverage"
+
+The implementation includes all 5 primary acceptance criteria tests, all 3 secondary tests, the backport analysis document, and the feature matrix. Tests cover both low-volatility truncated call and discrete double barrier scenarios. The backport analysis includes per-capability dependency chains with transplant/adaptation classification. A comprehensive comparison report summarizes all findings with cross-references to specific test outputs.
 
 ### Lower Bound (Minimum Acceptable Scope)
-<Affirmative description of the minimum viable implementation>
-<This represents the least effort that still satisfies all acceptance criteria>
-Example: "The implementation includes core feature X with basic validation"
+
+The implementation includes the 5 primary acceptance criteria tests and the feature matrix. The backport analysis can be a structured list (not a full narrative) showing file counts and dependency chains. Secondary tests may be reduced to documentation-only (describing the API difference without a compiled test).
 
 ### Allowed Choices
-<Options that are acceptable for implementation decisions>
-- Can use: <technologies, approaches, patterns that are allowed>
-- Cannot use: <technologies, approaches, patterns that are prohibited>
-
-> **Note on Deterministic Designs**: If the draft specifies a highly deterministic design with no choices (e.g., "must use JSON format", "must use algorithm X"), then the path boundaries should reflect this narrow constraint. In such cases, upper and lower bounds may converge to the same point, and "Allowed Choices" should explicitly state that the choice is fixed per the draft specification.
+- Can use: CMake build system, C++14/17 standard, Google Test or Boost.Test or standalone main() for test executables, Uniform1dMesher or FdmBlackScholesMesher for grid construction, direct solver path or engine API for pricing
+- Can use: `ql/experimental/finitedifferences/modtriplebandlinearop.hpp` from v1.23 for band access tests
+- Cannot use: modifications to either QuantLib_v1.23 or QuantLib_huatai source trees (tests are external programs linking against each library)
+- Cannot use: time estimates, LOC counts as primary evidence (use structural dependency analysis instead)
 
 ## Feasibility Hints and Suggestions
 
-> **Note**: This section is for reference and understanding only. These are conceptual suggestions, not prescriptive requirements.
-
 ### Conceptual Approach
-<Text description, pseudocode, or diagrams showing ONE possible implementation path>
+
+Build a `comparison_tests/` directory at the repository root with two CMake targets: one linking against v1.23 headers/libs, one linking against QuantLib_huatai. Each test program is a standalone executable that outputs structured results (pass/fail with details).
+
+For AC-1/AC-2 (oscillation/positivity):
+```
+1. Construct mesher, process, operator, solver for truncated call
+2. Solve backward from T to 0
+3. Iterate over interior grid nodes
+4. Count nodes where V < -1e-10 (oscillation metric)
+5. Report: total nodes, negative nodes, min V, max V
+```
+
+For AC-3 (discrete barrier):
+```
+1. On QuantLib_huatai: construct FdmDiscreteBarrierStepCondition with monitoring times
+2. Assemble into FdmStepConditionComposite
+3. Solve using Fdm1DimSolver
+4. Report grid values and positivity
+5. On v1.23: demonstrate #include failure for the step condition header
+```
+
+For AC-5 (backport analysis):
+```
+For each core research capability:
+  1. Identify the primary file implementing it in QuantLib_huatai
+  2. Trace its #include dependencies and constructor call chain
+  3. Check which of those dependencies exist in v1.23
+  4. Classify: direct transplant (file copy) vs adaptation (API changes needed)
+  5. Summarize the dependency chain depth
+```
 
 ### Relevant References
-<Code paths and concepts that might be useful>
-- <path/to/relevant/component> - <brief description>
+- `QuantLib_huatai/ql/methods/finitedifferences/operators/fdmblackscholesspatialdesc.hpp` - Spatial descriptor struct with 3 schemes
+- `QuantLib_huatai/ql/methods/finitedifferences/operators/fdmblackscholesop.cpp` - Multi-path setTime() implementation
+- `QuantLib_huatai/ql/methods/finitedifferences/operators/fdmhyperboliccot.hpp` - Numerically stable xCothx()
+- `QuantLib_huatai/ql/methods/finitedifferences/operators/fdmmatrixdiagnostic.hpp` - M-matrix diagnostic
+- `QuantLib_huatai/ql/methods/finitedifferences/operators/modtriplebandlinearop.hpp` - Mutable band access
+- `QuantLib_huatai/ql/methods/finitedifferences/stepconditions/fdmdiscretebarrierstepcondition.hpp` - Discrete barrier class
+- `QuantLib_huatai/ql/methods/finitedifferences/solvers/fdmblackscholessolver.cpp` - CN-equivalence validation
+- `QuantLib_huatai/ql/pricingengines/barrier/fdblackscholesbarrierengine.cpp` - Dual-path dispatch
+- `QuantLib_huatai/results/generate_data.cpp` - Existing research data generation harness
+- `QuantLib_huatai/results/results_analysis.md` - Documented numerical experiments
+- `QuantLib_v1.23/ql/methods/finitedifferences/operators/fdmblackscholesop.hpp` - v1.23 single-path operator
+- `QuantLib_v1.23/ql/experimental/finitedifferences/modtriplebandlinearop.hpp` - v1.23 experimental band access
+- `QuantLib_v1.23/ql/utilities/disposable.hpp` - Disposable<T> aliasing behavior
+- `QuantLib_v1.23/ql/userconfig.hpp` - QL_USE_DISPOSABLE configuration
 
 ## Dependencies and Sequence
 
 ### Milestones
-1. <Milestone 1>: <Description>
-   - Phase A: <...>
-   - Phase B: <...>
-2. <Milestone 2>: <Description>
-   - Step 1: <...>
-   - Step 2: <...>
 
-<Describe relative dependencies between components, not time estimates>
+1. **Build Infrastructure**: Set up comparison test build system
+   - Create `comparison_tests/CMakeLists.txt` with dual-target configuration
+   - Verify both QuantLib versions can be linked against
+
+2. **Core Research Gap Demonstration** (AC-1 through AC-4): Prove stock v1.23 lacks the numerical capability
+   - Implement oscillation detection test (AC-1)
+   - Implement positivity verification test (AC-2) — depends on AC-1 for parameter alignment
+   - Implement discrete barrier replication test (AC-3)
+   - Implement M-matrix diagnostic test (AC-4)
+
+3. **Backport Scope Analysis** (AC-5): Demonstrate minimum backport recapitulates research branch structure
+   - Trace dependency chains for each core research capability
+   - Classify transplant vs adaptation for each file
+   - Depends on Milestone 2 for concrete evidence of what's missing
+
+4. **Supporting Evidence** (AC-6 through AC-8): Secondary tests and documentation
+   - API surface analysis (AC-6) — independent of other milestones
+   - Feature matrix (AC-7) — depends on Milestones 2 and 3 for classification evidence
+   - Build reproducibility verification (AC-8) — depends on all tests being complete
+
+5. **Final Report**: Synthesize findings into comparison report
+   - Cross-reference test results with gap classification
+   - Depends on all milestones
 
 ## Task Breakdown
 
-Each task must include exactly one routing tag:
-- `coding`: implemented by Claude
-- `analyze`: executed via Codex (`/humanize:ask-codex`)
-
-| Task ID | Description | Target AC | Tag (`coding`/`analyze`) | Depends On |
-|---------|-------------|-----------|----------------------------|------------|
-| task1 | <...> | AC-1 | coding | - |
-| task2 | <...> | AC-2 | analyze | task1 |
+| Task ID | Description | Target AC | Tag | Depends On |
+|---------|-------------|-----------|-----|------------|
+| task1 | Create CMakeLists.txt for comparison_tests with dual v1.23/1.42-dev targets | AC-8 | coding | - |
+| task2 | Implement truncated call oscillation test (v1.23 StandardCentral, sigma=0.001) | AC-1 | coding | task1 |
+| task3 | Implement positivity verification test (1.42-dev ExponentialFitting + MilevTaglianiCN) | AC-2 | coding | task1 |
+| task4 | Implement discrete barrier replication test (1.42-dev with FdmDiscreteBarrierStepCondition) | AC-3 | coding | task1 |
+| task5 | Implement v1.23 discrete barrier absence test (#include failure + no class available) | AC-3 | coding | task1 |
+| task6 | Implement M-matrix diagnostic test (checkOffDiagonalNonNegative on both schemes) | AC-4 | coding | task1 |
+| task7 | Implement v1.23 M-matrix diagnostic absence test | AC-4 | coding | task1 |
+| task8 | Analyze dependency chains for FdmBlackScholesSpatialDesc backport | AC-5 | analyze | task2, task3 |
+| task9 | Analyze dependency chains for FdmDiscreteBarrierStepCondition backport | AC-5 | analyze | task4, task5 |
+| task10 | Analyze dependency chains for FdmMMatrixReport backport | AC-5 | analyze | task6, task7 |
+| task11 | Analyze dependency chain for xCothx and operator setTime() restructuring | AC-5 | analyze | task3 |
+| task12 | Synthesize backport analysis document from dependency chain analyses | AC-5 | coding | task8, task9, task10, task11 |
+| task13 | Document Disposable<> API surface difference with QL_USE_DISPOSABLE analysis | AC-6 | coding | task1 |
+| task14 | Generate feature matrix with native/absent/partial-workaround classifications | AC-7 | coding | task2, task3, task4, task6 |
+| task15 | Run full build and test suite, verify reproducibility | AC-8 | coding | task2, task3, task4, task5, task6, task7, task13 |
+| task16 | Generate final comparison report synthesizing all findings | AC-1 through AC-8 | coding | task12, task14, task15 |
 
 ## Claude-Codex Deliberation
 
 ### Agreements
-- <Point both sides agree on>
+- Missing native spatial-scheme dispatch in v1.23 is a real and critical gap
+- FdmDiscreteBarrierStepCondition is absent in v1.23 as shipped
+- FdmMMatrixReport / checkOffDiagonalNonNegative() are missing in v1.23
+- Separating numerical capability, API integration, and build friction into three axes is correct
+- Low-level solver replication is the primary path; engine API parity is secondary
+- ModTripleBandLinearOp exists in v1.23 experimental/ (not absent as originally claimed)
+- FdmStepConditionComposite is generic enough to host a new barrier step condition; the missing piece is the specific class, not the framework
+- Qualitative backport-cost framing ("recapitulates same module structure") is appropriate; strict quantitative cost comparison requires a separate effort model
 
 ### Resolved Disagreements
-- <Topic>: Claude vs Codex summary, chosen resolution, and rationale
+
+- **Disposable<> severity**: Claude initially classified as "strong blocker." Codex pointed out that `Disposable<T>` aliases to `T` by default (unless `QL_USE_DISPOSABLE` is enabled). Resolution: downgraded to integration friction / API-surface difference. Not a hard compile barrier in default configuration.
+
+- **"Infeasible" vs "absent/requires backport"**: Claude initially used "infeasible" for ExponentialFitting and MilevTaglianiCN in v1.23. Codex argued this overstates the case since a targeted backport could add them. Resolution: relabeled as "absent (requires new operator path)" — the capability is missing natively but not theoretically impossible to add.
+
+- **Barrier engine as core blocker**: Claude treated FdBlackScholesBarrierEngine discrete dispatch as a core blocker. Codex noted the research branch uses low-level solver, not the engine API. Resolution: engine parity moved to secondary evidence; primary path uses direct solver.
+
+- **AC thresholds**: Claude initially used arbitrary thresholds (file count >= 40, depth >= 5). Codex required concrete per-capability analysis with rationale. Resolution: AC-5 rewritten to require per-capability dependency chains and transplant/adaptation classification.
+
+- **ModTripleBandLinearOp**: Draft claimed it was absent in v1.23. Codex correctly identified it in `ql/experimental/finitedifferences/`. Resolution: reclassified as "partial (experimental, not on main operator path)."
+
+- **Version baseline**: Draft mixed "v1.41" and "v1.42-dev" labels. Codex required consistency. Resolution: QuantLib_huatai identified as "1.42-dev" throughout; v1.41 mentioned only as upstream provenance.
+
+- **Milev-Tagliani barrier parameters**: Draft used L=90, U=110. Codex identified that the actual repo artifacts use L=95, U=110. Resolution: AC-3 uses K=100, L=95, U=110 matching the implementation.
 
 ### Convergence Status
-- Final Status: `converged` or `partially_converged`
+- Final Status: `converged`
+- Rounds: 3
+- Round 1: 8 required changes (structural reclassification, thesis rewording)
+- Round 2: 5 required changes (version consistency, AC measurability, scope splitting)
+- Round 3: 2 required changes (parameter correction, Disposable<> recast)
 
 ## Pending User Decisions
 
-- DEC-1: <Decision topic>
-  - Claude Position: <...>
-  - Codex Position: <...>
-  - Tradeoff Summary: <...>
-  - Decision Status: `PENDING` or `<User's final decision>`
+No pending decisions. All items from Codex first-pass analysis and convergence rounds were resolved during the iterative process.
 
 ## Implementation Notes
 
@@ -102,22 +273,18 @@ Each task must include exactly one routing tag:
 - Implementation code and comments must NOT contain plan-specific terminology such as "AC-", "Milestone", "Step", "Phase", or similar workflow markers
 - These terms are for plan documentation only, not for the resulting codebase
 - Use descriptive, domain-appropriate naming in code instead
+- Test output should use structured format: `RESULT: PASS/FAIL <description>` for automated parsing
 
-## Output File Convention
+### Build Configuration Notes
+- v1.23 and QuantLib_huatai must be built separately before comparison tests
+- Comparison tests link against installed headers/libraries, NOT modifying source trees
+- CMake should detect QuantLib version from `ql/version.hpp` or `ql/qldefines.hpp`
 
-This template is used to produce the main output file (e.g., `plan.md`).
-
-### Translated Language Variant
-
-When `alternative_plan_language` resolves to a supported language name through merged config loading, a translated variant of the output file is also written after the main file. Humanize loads config from merged layers in this order: default config, optional user config, then optional project config; `alternative_plan_language` may be set at any of those layers. The variant filename is constructed by inserting `_<code>` (the ISO 639-1 code from the built-in mapping table) immediately before the file extension:
-
-- `plan.md` becomes `plan_<code>.md` (e.g. `plan_zh.md` for Chinese, `plan_ko.md` for Korean)
-- `docs/my-plan.md` becomes `docs/my-plan_<code>.md`
-- `output` (no extension) becomes `output_<code>`
-
-The translated variant file contains a full translation of the main plan file's current content in the configured language. All identifiers (`AC-*`, task IDs, file paths, API names, command flags) remain unchanged, as they are language-neutral.
-
-When `alternative_plan_language` is empty, absent, set to `"English"`, or set to an unsupported language, no translated variant is written. Humanize does not auto-create `.humanize/config.json` when no project config file is present.
+### Testing Philosophy
+- Each test is a standalone executable returning 0 on expected outcome
+- "Expected outcome" includes expected failures (e.g., v1.23 correctly lacking a feature)
+- Absence tests on v1.23 verify that specific headers/types/classes do not exist
+- Presence tests on QuantLib_huatai verify research capabilities work as documented
 
 --- Original Design Draft Start ---
 
@@ -136,7 +303,7 @@ The implementation lives in `QuantLib_huatai/` (based on QuantLib v1.41). A clai
 ## Three Schemes Implemented
 
 1. **StandardCentral** - Baseline centered-difference Crank-Nicolson (reference, oscillates in low-vol regime)
-2. **ExponentialFitting** (Duffy 2004) - Péclet-dependent fitting factor `rho = x*coth(x)` that smoothly adapts diffusion coefficient
+2. **ExponentialFitting** (Duffy 2004) - Peclet-dependent fitting factor `rho = x*coth(x)` that smoothly adapts diffusion coefficient
 3. **MilevTaglianiCNEffectiveDiffusion** (Milev-Tagliani 2010) - CN variant with artificial diffusion `r^2*h^2/(8*sigma^2)` preserving positivity
 
 ## Goal
@@ -199,7 +366,7 @@ This is a completely new class that must be written from scratch.
 
 v1.23's `setTime()` method computes a fixed set of coefficients (standard centered differences). v1.41's `setTime()` contains three distinct code paths dispatched by `spatialDesc_.scheme`:
 - StandardCentral: original code path
-- ExponentialFitting: computes per-node Péclet numbers, calls `xCothx()`, applies fitting factor
+- ExponentialFitting: computes per-node Peclet numbers, calls `xCothx()`, applies fitting factor
 - MilevTaglianiCNEffectiveDiffusion: computes artificial diffusion `r^2*h^2/(8*sigma^2)`
 
 This is not a trivial patch; it requires restructuring the entire operator assembly.
@@ -279,7 +446,7 @@ Programs that compile on BOTH versions but demonstrate behavioral differences:
 
 ### Phase 5: End-to-End Demonstration
 
-13. **reproduce_paper_results.cpp**: Replicate Milev-Tagliani Example 4.1 (discrete double barrier knock-out call with K=100, L=90, U=110, sigma varies) using v1.41. Show:
+13. **reproduce_paper_results.cpp**: Replicate Milev-Tagliani Example 4.1 (discrete double barrier knock-out call with K=100, L=95, U=110, sigma varies) using v1.41. Show:
     - StandardCentral oscillates at low sigma
     - ExponentialFitting is smooth and positive
     - MilevTaglianiCN is smooth and positive
