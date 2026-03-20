@@ -1,1 +1,3 @@
 .humanize*
+build/
+comparison_tests/build/

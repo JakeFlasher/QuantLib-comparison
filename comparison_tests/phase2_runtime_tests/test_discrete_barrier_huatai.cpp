@@ -1,6 +1,6 @@
-// Discrete double barrier replication test (Milev-Tagliani Example 4.1).
-// QuantLib_huatai only: uses FdmDiscreteBarrierStepCondition.
-// K=100, L=95, U=110, 5 monitoring dates, sigma=0.25/0.001
+// Discrete double barrier replication — QuantLib_huatai only.
+// Follows fdmdiscretebarrierengine.cpp and generate_data.cpp patterns.
+// K=100, L=95, U=110, 5 monitoring dates.
 
 #include <ql/qldefines.hpp>
 #include <ql/settings.hpp>
@@ -10,27 +10,60 @@
 #include <ql/termstructures/yield/flatforward.hpp>
 #include <ql/termstructures/volatility/equityfx/blackconstantvol.hpp>
 #include <ql/processes/blackscholesprocess.hpp>
-#include <ql/methods/finitedifferences/meshers/uniform1dmesher.hpp>
+#include <ql/instruments/payoffs.hpp>
+#include <ql/methods/finitedifferences/meshers/fdmblackscholesmesher.hpp>
 #include <ql/methods/finitedifferences/meshers/fdmmeshercomposite.hpp>
+#include <ql/methods/finitedifferences/meshers/uniform1dmesher.hpp>
 #include <ql/methods/finitedifferences/operators/fdmblackscholesop.hpp>
 #include <ql/methods/finitedifferences/operators/fdmblackscholesspatialdesc.hpp>
-#include <ql/methods/finitedifferences/solvers/fdm1dimsolver.hpp>
+#include <ql/methods/finitedifferences/operators/fdmlinearoplayout.hpp>
 #include <ql/methods/finitedifferences/solvers/fdmbackwardsolver.hpp>
 #include <ql/methods/finitedifferences/stepconditions/fdmdiscretebarrierstepcondition.hpp>
 #include <ql/methods/finitedifferences/stepconditions/fdmstepconditioncomposite.hpp>
-#include <ql/payoff.hpp>
-#include <ql/instruments/payoffs.hpp>
+#include <ql/methods/finitedifferences/utilities/fdminnervaluecalculator.hpp>
 
 #include <iostream>
 #include <cmath>
 #include <vector>
 #include <string>
+#include <iomanip>
 
 using namespace QuantLib;
 
+// Build payoff array on the mesher grid
+Array buildPayoff(const ext::shared_ptr<FdmMesher>& mesher,
+                  const ext::shared_ptr<Payoff>& payoff) {
+    Array rhs(mesher->layout()->size());
+    for (const auto& iter : *(mesher->layout())) {
+        const Real x = mesher->location(iter, 0);
+        rhs[iter.index()] = (*payoff)(std::exp(x));
+    }
+    return rhs;
+}
+
+// Interpolate value at spot from the rollback array
+Real valueAtSpot(const Array& rhs,
+                 const ext::shared_ptr<FdmMesher>& mesher,
+                 Real spotLevel) {
+    const Real xTarget = std::log(spotLevel);
+    const Size n = mesher->layout()->size();
+
+    // Find bracketing indices
+    for (Size i = 0; i < n - 1; ++i) {
+        Real x0 = mesher->location(
+            FdmLinearOpIterator(std::vector<Size>{n}, std::vector<Size>{i}, i), 0);
+        Real x1 = mesher->location(
+            FdmLinearOpIterator(std::vector<Size>{n}, std::vector<Size>{i+1}, i+1), 0);
+        if (x0 <= xTarget && xTarget <= x1) {
+            Real w = (xTarget - x0) / (x1 - x0);
+            return rhs[i] * (1.0 - w) + rhs[i+1] * w;
+        }
+    }
+    return 0.0;
+}
+
 struct BarrierResult {
     std::string schemeName;
-    Real sigma;
     Real price;
     Size negativeNodes;
     Real minV;
@@ -38,17 +71,18 @@ struct BarrierResult {
 
 BarrierResult runBarrierTest(
     Real sigma, Real r, Real K, Real L, Real U, Real T,
-    Size xGrid, Size tGrid, Size nMonitoring,
-    FdmBlackScholesSpatialDesc spatialDesc,
-    const std::string& schemeName)
+    Size xGrid, Size tGrid, Size nMon,
+    FdmBlackScholesSpatialDesc desc,
+    const std::string& schemeName,
+    bool useUniformMesh)
 {
     Date today(28, March, 2004);
 
-    auto spot  = ext::make_shared<SimpleQuote>(K);  // ATM
+    auto spot  = ext::make_shared<SimpleQuote>(K);
     auto qTS   = ext::make_shared<FlatForward>(today, 0.0, Actual365Fixed());
     auto rTS   = ext::make_shared<FlatForward>(today, r, Actual365Fixed());
-    auto volTS = ext::make_shared<BlackConstantVol>(today, NullCalendar(),
-                                                    sigma, Actual365Fixed());
+    auto volTS = ext::make_shared<BlackConstantVol>(
+        today, NullCalendar(), sigma, Actual365Fixed());
 
     auto process = ext::make_shared<BlackScholesMertonProcess>(
         Handle<Quote>(spot),
@@ -56,100 +90,80 @@ BarrierResult runBarrierTest(
         Handle<YieldTermStructure>(rTS),
         Handle<BlackVolTermStructure>(volTS));
 
-    // Uniform mesher in log-space covering [L-margin, U+margin]
-    const Real margin = 0.1;
-    const Real xMin = std::log(L * (1.0 - margin));
-    const Real xMax = std::log(U * (1.0 + margin));
-    auto mesher1d = ext::make_shared<Uniform1dMesher>(xMin, xMax, xGrid);
-    auto mesher = ext::make_shared<FdmMesherComposite>(mesher1d);
+    ext::shared_ptr<FdmMesherComposite> mesher;
+    if (useUniformMesh) {
+        const Real xMin = std::log(L - 15.0);
+        const Real xMax = std::log(U + 20.0);
+        mesher = ext::make_shared<FdmMesherComposite>(
+            ext::make_shared<Uniform1dMesher>(xMin, xMax, xGrid));
+    } else {
+        std::vector<std::tuple<Real, Real, bool>> cPoints = {
+            {K, 0.1, true}, {L, 0.1, true}, {U, 0.1, true}
+        };
+        mesher = ext::make_shared<FdmMesherComposite>(
+            ext::make_shared<FdmBlackScholesMesher>(
+                xGrid, process, T, K,
+                Null<Real>(), Null<Real>(), 0.0001, 1.5, cPoints));
+    }
 
     auto payoff = ext::make_shared<PlainVanillaPayoff>(Option::Call, K);
 
-    // Build monitoring times
-    std::vector<Time> monitoringTimes;
-    for (Size i = 1; i <= nMonitoring; ++i) {
-        monitoringTimes.push_back(T * Real(i) / Real(nMonitoring));
-    }
+    std::vector<Time> monTimes;
+    for (Size i = 1; i <= nMon; ++i)
+        monTimes.push_back(T * Real(i) / Real(nMon));
 
-    // Discrete barrier step condition
     auto barrierCondition = ext::make_shared<FdmDiscreteBarrierStepCondition>(
-        mesher, monitoringTimes, L, U, Size(0));
+        mesher, monTimes, L, U);
 
-    // Assemble step conditions
-    std::list<std::vector<Time>> stoppingTimes;
-    stoppingTimes.push_back(monitoringTimes);
+    auto conditions = ext::make_shared<FdmStepConditionComposite>(
+        std::list<std::vector<Time>>(1, monTimes),
+        FdmStepConditionComposite::Conditions(1, barrierCondition));
 
-    FdmStepConditionComposite::Conditions conditions;
-    conditions.push_back(barrierCondition);
-
-    auto stepConditions = ext::make_shared<FdmStepConditionComposite>(
-        stoppingTimes, conditions);
-
-    // Build operator
     auto op = ext::make_shared<FdmBlackScholesOp>(
-        mesher, process, K, false, -Null<Real>(), 0,
-        ext::shared_ptr<FdmQuantoHelper>(),
-        spatialDesc);
+        mesher, process, K, false, -Null<Real>(), Size(0),
+        ext::shared_ptr<FdmQuantoHelper>(), desc);
 
-    FdmSolverDesc solverDesc = {
-        mesher,
-        FdmBoundaryConditionSet(),
-        stepConditions,
-        payoff,
-        T, tGrid, 0
-    };
+    Array rhs = buildPayoff(mesher, payoff);
+    const FdmBoundaryConditionSet bcSet;
 
-    FdmSchemeDesc schemeDesc = FdmSchemeDesc::CrankNicolson();
-    Fdm1DimSolver solver(solverDesc, schemeDesc, op);
+    FdmBackwardSolver solver(op, bcSet, conditions,
+                             FdmSchemeDesc::CrankNicolson());
+    solver.rollback(rhs, T, 0.0, tGrid, 0);
 
-    const Real price = solver.interpolateAt(K);
+    Real price = valueAtSpot(rhs, mesher, K);
 
-    // Check for negative values
     Size negCount = 0;
     Real minV = 1e30;
-    const Size n = mesher->layout()->size();
-    for (Size i = 1; i < n - 1; ++i) {
-        const Real x = mesher->location(
-            FdmLinearOpIterator(std::vector<Size>{n}, std::vector<Size>{i}, i), 0);
-        const Real S = std::exp(x);
-        const Real V = solver.interpolateAt(S);
-        minV = std::min(minV, V);
-        if (V < -1e-10) ++negCount;
+    for (Size i = 1; i < rhs.size() - 1; ++i) {
+        minV = std::min(minV, rhs[i]);
+        if (rhs[i] < -1e-10) ++negCount;
     }
 
-    return {schemeName, sigma, price, negCount, minV};
+    return {schemeName, price, negCount, minV};
 }
 
 int main() {
     try {
         Settings::instance().evaluationDate() = Date(28, March, 2004);
 
-        const Real r = 0.05;
-        const Real K = 100.0;
-        const Real L = 95.0;
-        const Real U = 110.0;
+        const Real r = 0.05, K = 100.0, L = 95.0, U = 110.0;
         const Size nMon = 5;
-        const Size xGrid = 400;
-        const Size tGrid = 1600;
 
-        std::cout << "=== Discrete Double Barrier Replication Test ===" << std::endl;
-        std::cout << "K=" << K << " L=" << L << " U=" << U
-                  << " r=" << r << " monitors=" << nMon << std::endl;
+        std::cout << "=== Discrete Double Barrier Replication ===" << std::endl;
+        std::cout << std::fixed << std::setprecision(6);
 
         bool allPass = true;
 
-        // Test 1: Moderate volatility (sigma=0.25, T=0.5)
+        // Test 1: Moderate vol (sigma=0.25, T=0.5), FdmBlackScholesMesher
         {
-            const Real sigma = 0.25;
-            const Real T = 0.5;
-            std::cout << "\n--- Moderate vol: sigma=" << sigma << " T=" << T << " ---" << std::endl;
-
-            for (const auto& [desc, name] : {
+            std::cout << "\n--- Moderate vol: sigma=0.25 T=0.5 ---" << std::endl;
+            for (const auto& [d, name] : {
                 std::make_pair(FdmBlackScholesSpatialDesc::standard(), std::string("StandardCentral")),
                 std::make_pair(FdmBlackScholesSpatialDesc::exponentialFitting(), std::string("ExponentialFitting")),
                 std::make_pair(FdmBlackScholesSpatialDesc::milevTaglianiCN(), std::string("MilevTaglianiCN"))
             }) {
-                auto res = runBarrierTest(sigma, r, K, L, U, T, xGrid, tGrid, nMon, desc, name);
+                auto res = runBarrierTest(0.25, r, K, L, U, 0.5,
+                    2000, 500, nMon, d, name, false);
                 std::cout << "  " << res.schemeName << ": price=" << res.price
                           << " negNodes=" << res.negativeNodes
                           << " minV=" << res.minV << std::endl;
@@ -160,26 +174,29 @@ int main() {
             }
         }
 
-        // Test 2: Low volatility (sigma=0.001, T=1.0)
+        // Test 2: Low vol (sigma=0.001, T=1.0), Uniform mesh
         {
-            const Real sigma = 0.001;
-            const Real T = 1.0;
-            std::cout << "\n--- Low vol: sigma=" << sigma << " T=" << T << " ---" << std::endl;
-
-            for (const auto& [desc, name] : {
+            std::cout << "\n--- Low vol: sigma=0.001 T=1.0 ---" << std::endl;
+            for (const auto& [d, name] : {
                 std::make_pair(FdmBlackScholesSpatialDesc::standard(), std::string("StandardCentral")),
                 std::make_pair(FdmBlackScholesSpatialDesc::exponentialFitting(), std::string("ExponentialFitting")),
                 std::make_pair(FdmBlackScholesSpatialDesc::milevTaglianiCN(), std::string("MilevTaglianiCN"))
             }) {
-                auto res = runBarrierTest(sigma, r, K, L, U, T, xGrid, tGrid, nMon, desc, name);
+                auto res = runBarrierTest(0.001, r, K, L, U, 1.0,
+                    800, 200, nMon, d, name, true);
                 std::cout << "  " << res.schemeName << ": price=" << res.price
                           << " negNodes=" << res.negativeNodes
                           << " minV=" << res.minV << std::endl;
 
-                // ExponentialFitting and MilevTaglianiCN should be all-positive
-                if (name != "StandardCentral" && res.negativeNodes > 0) {
-                    std::cout << "  FAIL: " << name << " has negative nodes at low vol" << std::endl;
-                    allPass = false;
+                if (name == "StandardCentral") {
+                    if (res.negativeNodes == 0) {
+                        std::cout << "  NOTE: StandardCentral no negative nodes at low vol" << std::endl;
+                    }
+                } else {
+                    if (res.negativeNodes > 0) {
+                        std::cout << "  FAIL: " << name << " has negative nodes" << std::endl;
+                        allPass = false;
+                    }
                 }
             }
         }

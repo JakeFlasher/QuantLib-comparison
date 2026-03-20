@@ -18,7 +18,7 @@
 | 6 | Multi-point mesh concentration | **partial-workaround** | native | v1.23: `FdmBlackScholesMesher` has single `cPoint` parameter; `FdmBlackScholesMultiStrikeMesher` exists as workaround (different interface). Can also use `Uniform1dMesher` explicitly. v1.42-dev: `cPoints` vector constructor |
 | 7 | Operator band access | **partial-workaround** | native | v1.23: `ModTripleBandLinearOp` exists in `ql/experimental/finitedifferences/` with `lower(i)`, `diag(i)`, `upper(i)` accessors. Not on main FD operator path. v1.42-dev: promoted to main `ql/methods/finitedifferences/operators/` |
 | 8 | Solver CN-equivalence validation | **absent** | native | v1.23: no `isCrankNicolsonEquivalent1D()`. v1.42-dev: `fdmblackscholessolver.cpp` validates Milev-Tagliani requires CN-equivalent time stepping |
-| 9 | Disposable<> API compatibility | present (aliased) | removed | v1.23: `Disposable<T>` aliases to `T` by default (`ql/utilities/disposable.hpp` line 34). With `QL_USE_DISPOSABLE` enabled, it's a distinct class with move semantics. v1.42-dev: `Disposable<>` fully removed, direct returns everywhere |
+| 9 | Disposable<> API compatibility | **partial-workaround** | native (removed) | v1.23: `Disposable<T>` aliases to `T` by default (`ql/utilities/disposable.hpp` line 34) — not a hard compile barrier. With `QL_USE_DISPOSABLE` enabled, it becomes a distinct class causing signature mismatches. v1.42-dev: fully removed, direct returns everywhere. |
 
 ## Summary Statistics
 
@@ -26,8 +26,7 @@
 |---------------|-------|-------------|
 | native (both) | 1 | StandardCentral |
 | absent in v1.23 | 5 | ExponentialFitting, MilevTaglianiCN, Discrete barrier, M-matrix diagnostics, Solver CN validation |
-| partial-workaround | 2 | Multi-point mesh, Operator band access |
-| API difference | 1 | Disposable<> |
+| partial-workaround | 3 | Multi-point mesh, Operator band access, Disposable<> API |
 
 ## Key Insight
 

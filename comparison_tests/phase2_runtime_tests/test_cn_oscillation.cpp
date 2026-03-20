@@ -1,10 +1,7 @@
-// Truncated call oscillation test.
-// Compiles against both v1.23 and QuantLib_huatai.
-// On v1.23: demonstrates spurious oscillations (V < -1e-10 at some nodes).
-// On huatai: same StandardCentral scheme also oscillates (the problem exists
-// regardless of version; the SOLUTION is what differs).
-//
-// Parameters: sigma=0.001, r=0.05, K=50, U=70, T=5/12, xGrid=200
+// Truncated call oscillation test — compiles against v1.23 OR QuantLib_huatai.
+// On both versions: StandardCentral produces V < -1e-10 at low vol.
+// Uses FdmBackwardSolver + raw rollback array to avoid interpolation smoothing.
+// Parameters: sigma=0.001, r=0.05, K=50, U=70, T=5/12, xGrid=400, tGrid=25
 
 #include <ql/qldefines.hpp>
 #include <ql/settings.hpp>
@@ -14,17 +11,17 @@
 #include <ql/termstructures/yield/flatforward.hpp>
 #include <ql/termstructures/volatility/equityfx/blackconstantvol.hpp>
 #include <ql/processes/blackscholesprocess.hpp>
-#include <ql/methods/finitedifferences/meshers/fdmblackscholesmesher.hpp>
+#include <ql/instruments/payoffs.hpp>
+#include <ql/methods/finitedifferences/meshers/uniform1dmesher.hpp>
 #include <ql/methods/finitedifferences/meshers/fdmmeshercomposite.hpp>
 #include <ql/methods/finitedifferences/operators/fdmblackscholesop.hpp>
-#include <ql/methods/finitedifferences/solvers/fdm1dimsolver.hpp>
+#include <ql/methods/finitedifferences/operators/fdmlinearoplayout.hpp>
 #include <ql/methods/finitedifferences/solvers/fdmbackwardsolver.hpp>
-#include <ql/payoff.hpp>
-#include <ql/instruments/payoffs.hpp>
+#include <ql/methods/finitedifferences/stepconditions/fdmstepconditioncomposite.hpp>
+#include <ql/methods/finitedifferences/utilities/fdmdirichletboundary.hpp>
 
 #include <iostream>
 #include <cmath>
-#include <algorithm>
 
 using namespace QuantLib;
 
@@ -33,10 +30,9 @@ int main() {
         const Real sigma = 0.001;
         const Real r     = 0.05;
         const Real K     = 50.0;
-        const Real U     = 70.0;   // truncation barrier
-        const Real T     = 5.0/12.0;
-        const Size xGrid = 200;
-        const Size tGrid = 800;
+        const Real T     = 5.0 / 12.0;
+        const Size xGrid = 400;
+        const Size tGrid = 25;
 
         Date today(28, March, 2004);
         Settings::instance().evaluationDate() = today;
@@ -44,8 +40,8 @@ int main() {
         auto spot  = ext::make_shared<SimpleQuote>(60.0);
         auto qTS   = ext::make_shared<FlatForward>(today, 0.0, Actual365Fixed());
         auto rTS   = ext::make_shared<FlatForward>(today, r, Actual365Fixed());
-        auto volTS = ext::make_shared<BlackConstantVol>(today, NullCalendar(),
-                                                        sigma, Actual365Fixed());
+        auto volTS = ext::make_shared<BlackConstantVol>(
+            today, NullCalendar(), sigma, Actual365Fixed());
 
         auto process = ext::make_shared<BlackScholesMertonProcess>(
             Handle<Quote>(spot),
@@ -53,16 +49,14 @@ int main() {
             Handle<YieldTermStructure>(rTS),
             Handle<BlackVolTermStructure>(volTS));
 
-        // Build mesher with uniform grid in log-space
         const Real xMin = std::log(1.0);
-        const Real xMax = std::log(U);
-        auto mesher1d = ext::make_shared<Uniform1dMesher>(xMin, xMax, xGrid);
-        auto mesher = ext::make_shared<FdmMesherComposite>(mesher1d);
+        const Real xMax = std::log(140.0);
+        auto mesher = ext::make_shared<FdmMesherComposite>(
+            ext::make_shared<Uniform1dMesher>(xMin, xMax, xGrid));
 
-        // Truncated call payoff: max(S-K, 0) for S in [0, U], 0 otherwise
+        // Build truncated call payoff on the grid: max(S-K,0) for S<=U, 0 otherwise
         auto payoff = ext::make_shared<PlainVanillaPayoff>(Option::Call, K);
-
-        // Build initial condition (truncated call at maturity)
+        const Real U = 70.0;
         Array rhs(mesher->layout()->size());
         for (const auto& iter : *(mesher->layout())) {
             const Real x = mesher->location(iter, 0);
@@ -70,50 +64,41 @@ int main() {
             rhs[iter.index()] = (S <= U) ? (*payoff)(S) : 0.0;
         }
 
-        // Build operator
-        auto op = ext::make_shared<FdmBlackScholesOp>(
-            mesher, process, K, false, -Null<Real>(), 0);
-
-        // Solver description
-        FdmSolverDesc solverDesc = {
-            mesher,
-            FdmBoundaryConditionSet(),
-            ext::make_shared<FdmStepConditionComposite>(
-                std::list<std::vector<Time>>(),
-                FdmStepConditionComposite::Conditions()),
-            payoff,
-            T, tGrid, 0
+        const FdmBoundaryConditionSet bcSet = {
+            ext::make_shared<FdmDirichletBoundary>(
+                mesher, 0.0, 0, FdmDirichletBoundary::Lower),
+            ext::make_shared<FdmDirichletBoundary>(
+                mesher, 0.0, 0, FdmDirichletBoundary::Upper)
         };
 
-        // Use Crank-Nicolson (theta=0.5)
-        FdmSchemeDesc schemeDesc = FdmSchemeDesc::CrankNicolson();
+        auto conditions = ext::make_shared<FdmStepConditionComposite>(
+            std::list<std::vector<Time>>(),
+            FdmStepConditionComposite::Conditions());
 
-        Fdm1DimSolver solver(solverDesc, schemeDesc, op);
+        // Build operator — v1.23 has no spatialDesc parameter
+        auto op = ext::make_shared<FdmBlackScholesOp>(
+            mesher, process, K);
 
-        // Scan grid for negative values
+        FdmBackwardSolver solver(op, bcSet, conditions,
+                                 FdmSchemeDesc::CrankNicolson());
+        solver.rollback(rhs, T, 0.0, tGrid, 0);
+
+        // Inspect raw rollback array for negative values
         Size negativeCount = 0;
         Real minV = 1e30;
         Real maxV = -1e30;
-        const Size n = mesher->layout()->size();
 
-        for (Size i = 1; i < n - 1; ++i) {  // interior nodes only
-            const Real x = mesher->location(
-                FdmLinearOpIterator(std::vector<Size>{n}, std::vector<Size>{i}, i), 0);
-            const Real S = std::exp(x);
-            const Real V = solver.interpolateAt(S);
-
-            minV = std::min(minV, V);
-            maxV = std::max(maxV, V);
-            if (V < -1e-10) {
-                ++negativeCount;
-            }
+        for (Size i = 1; i < rhs.size() - 1; ++i) {
+            minV = std::min(minV, rhs[i]);
+            maxV = std::max(maxV, rhs[i]);
+            if (rhs[i] < -1e-10) ++negativeCount;
         }
 
         std::cout << "=== Truncated Call Oscillation Test (StandardCentral) ===" << std::endl;
         std::cout << "sigma=" << sigma << " r=" << r
                   << " K=" << K << " U=" << U << " T=" << T << std::endl;
         std::cout << "xGrid=" << xGrid << " tGrid=" << tGrid << std::endl;
-        std::cout << "Interior nodes: " << (n - 2) << std::endl;
+        std::cout << "Interior nodes: " << (rhs.size() - 2) << std::endl;
         std::cout << "Negative nodes (V < -1e-10): " << negativeCount << std::endl;
         std::cout << "Min V: " << minV << std::endl;
         std::cout << "Max V: " << maxV << std::endl;
@@ -123,8 +108,7 @@ int main() {
                       << negativeCount << " negative nodes)" << std::endl;
             return 0;
         } else {
-            std::cout << "RESULT: FAIL - No negative nodes found (expected oscillations)"
-                      << std::endl;
+            std::cout << "RESULT: FAIL - No negative nodes found" << std::endl;
             return 1;
         }
 

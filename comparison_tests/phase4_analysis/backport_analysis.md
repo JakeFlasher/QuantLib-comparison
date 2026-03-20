@@ -126,9 +126,9 @@ Standalone utility, but required by Capability 1 (ExponentialFitting code path i
 
 | Classification | Count | Files |
 |---------------|-------|-------|
-| New files (transplant) | 4 | `fdmblackscholesspatialdesc.hpp`, `fdmhyperboliccot.hpp`, `fdmmatrixdiagnostic.hpp`, `fdmdiscretebarrierstepcondition.{hpp,cpp}` |
-| Existing files (adaptation) | 6 | `fdmblackscholesop.{hpp,cpp}`, `fdmblackscholessolver.{hpp,cpp}`, `fdblackscholesbarrierengine.{hpp,cpp}` |
-| **Total** | **10** | — |
+| New files (transplant) | 5 | `fdmblackscholesspatialdesc.hpp`, `fdmhyperboliccot.hpp`, `fdmmatrixdiagnostic.hpp`, `fdmdiscretebarrierstepcondition.hpp`, `fdmdiscretebarrierstepcondition.cpp` |
+| Existing files (adaptation) | 6 | `fdmblackscholesop.hpp`, `fdmblackscholesop.cpp`, `fdmblackscholessolver.hpp`, `fdmblackscholessolver.cpp`, `fdblackscholesbarrierengine.hpp`, `fdblackscholesbarrierengine.cpp` |
+| **Total** | **11** | — |
 
 ### Dependency Structure
 
@@ -159,8 +159,9 @@ The dependency chain is **linear and deep** (depth 5 from spatial descriptor to 
 ## Conclusion
 
 The minimum credible backport to enable paper replication on v1.23 requires:
-- **4 new files** (transplant from QuantLib_huatai)
+- **5 new physical files** (transplant from QuantLib_huatai)
 - **6 existing files modified** (constructor signatures, new code paths, dispatch logic)
+- **11 total files touched**
 - **Dependency chain depth of 5** (spatial desc → operator → solver → engine → step condition)
 
 This substantially recapitulates the same module set and dependency structure as the QuantLib_huatai research branch. The backport IS the upgrade, just applied selectively rather than wholesale.
