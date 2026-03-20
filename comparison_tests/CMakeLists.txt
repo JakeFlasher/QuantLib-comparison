@@ -5,8 +5,7 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 # ─────────────────────────────────────────────────────────────────
-# Locate both QuantLib versions (v1.23 headers only — library does
-# not build on GCC 15 / Clang 21; see v1.23 build failure test)
+# Locate both QuantLib versions
 # ─────────────────────────────────────────────────────────────────
 
 set(QL_V123_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/../QuantLib_v1.23"
@@ -28,13 +27,25 @@ set_target_properties(ql_huatai PROPERTIES
 )
 
 # ─────────────────────────────────────────────────────────────────
+# Build minimal v1.23 static library from compilable sources
+# (excludes cashflows/indexes/experimental that fail on timeseries.hpp)
+# ─────────────────────────────────────────────────────────────────
+
+include(cmake/v123_minimal_sources.cmake)
+
+add_library(ql_v123_minimal OBJECT ${V123_MINIMAL_SOURCES})
+target_include_directories(ql_v123_minimal PUBLIC "${QL_V123_ROOT}")
+target_compile_options(ql_v123_minimal PRIVATE -fpermissive -w)
+target_compile_definitions(ql_v123_minimal PRIVATE QL_VERSION_V123)
+
+# ─────────────────────────────────────────────────────────────────
 # Find Boost (required by QuantLib)
 # ─────────────────────────────────────────────────────────────────
 
 find_package(Boost REQUIRED)
 
 # ─────────────────────────────────────────────────────────────────
-# Helper: add a test executable linked against QuantLib_huatai
+# Helpers
 # ─────────────────────────────────────────────────────────────────
 
 function(add_huatai_test TARGET SOURCE)
@@ -43,11 +54,23 @@ function(add_huatai_test TARGET SOURCE)
     target_compile_definitions(${TARGET} PRIVATE QL_VERSION_HUATAI)
 endfunction()
 
+function(add_v123_test TARGET SOURCE)
+    add_executable(${TARGET} ${SOURCE})
+    target_link_libraries(${TARGET} PRIVATE ql_v123_minimal Boost::boost)
+    target_compile_definitions(${TARGET} PRIVATE QL_VERSION_V123)
+    target_compile_options(${TARGET} PRIVATE -fpermissive -w)
+    target_link_options(${TARGET} PRIVATE -Wl,--gc-sections -Wl,--allow-multiple-definition)
+endfunction()
+
 # ─────────────────────────────────────────────────────────────────
-# Phase 2-5: Runtime tests (QuantLib_huatai only — v1.23 cannot
-# build a library on the available toolchain)
+# Dual-version runtime tests
 # ─────────────────────────────────────────────────────────────────
 
+# v1.23 runtime (from minimal source library)
+add_v123_test(test_cn_oscillation_v123
+    phase2_runtime_tests/test_cn_oscillation.cpp)
+
+# QuantLib_huatai runtime
 add_huatai_test(test_cn_oscillation_huatai
     phase2_runtime_tests/test_cn_oscillation.cpp)
 
@@ -100,7 +123,7 @@ add_compile_fail_test(v123_mesher_multipoint_missing
 add_compile_fail_test(v123_disposable_signature_mismatch
     phase1_compile_tests/test_disposable_signature.cpp)
 
-# v1.23 library build failure test (proves toolchain incompatibility)
+# v1.23 full library build failure (separate toolchain evidence)
 add_test(NAME v123_library_build_fails
     COMMAND ${CMAKE_COMMAND}
         --log-level=ERROR
@@ -109,7 +132,8 @@ add_test(NAME v123_library_build_fails
         -P ${CMAKE_CURRENT_SOURCE_DIR}/cmake/try_build_v123_lib.cmake
 )
 
-# Runtime tests (QuantLib_huatai only)
+# Dual-version runtime tests
+add_test(NAME oscillation_v123 COMMAND test_cn_oscillation_v123)
 add_test(NAME oscillation_huatai COMMAND test_cn_oscillation_huatai)
 add_test(NAME positivity_huatai COMMAND test_positivity_huatai)
 add_test(NAME discrete_barrier_huatai COMMAND test_discrete_barrier_huatai)

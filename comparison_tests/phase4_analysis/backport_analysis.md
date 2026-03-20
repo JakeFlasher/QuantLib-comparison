@@ -74,7 +74,7 @@ For each core research capability absent in v1.23, we trace:
 `FdmMMatrixReport` → `ModTripleBandLinearOp` → `FdmBlackScholesOp::setTime()` integration
 
 ### Backport Verdict
-**Transplant + integration.** The diagnostic header can be copied, and `ModTripleBandLinearOp` already exists in v1.23 experimental/. But integrating diagnostics into the operator requires the spatial descriptor (Capability 1) to be present first. This creates a **circular dependency** with Capability 1.
+**Transplant + integration.** The diagnostic header can be copied, and `ModTripleBandLinearOp` already exists in v1.23 experimental/. But integrating diagnostics into the operator requires the spatial descriptor (Capability 1) to be present first. This is a **one-way dependency**: Capability 3 depends on Capability 1, but Capability 1 does not depend on Capability 3.
 
 ---
 
@@ -120,6 +120,29 @@ Standalone utility, but required by Capability 1 (ExponentialFitting code path i
 
 ---
 
+## Capability 6: FdmBlackScholesMesher Multi-Point Concentration
+
+### Primary Files
+- `ql/methods/finitedifferences/meshers/fdmblackscholesmesher.hpp` — MODIFIED in v1.42-dev
+- `ql/methods/finitedifferences/meshers/fdmblackscholesmesher.cpp` — MODIFIED in v1.42-dev
+
+### What Changed
+v1.23 has a single `cPoint` parameter (`std::pair<Real, Real>`). v1.42-dev adds a second constructor taking `std::vector<std::tuple<Real, Real, bool>> cPoints` for concentrating grid points at multiple locations (strike + barriers simultaneously).
+
+### Dependencies
+| File | v1.23 Status | Classification |
+|------|-------------|---------------|
+| `fdmblackscholesmesher.hpp` | present, different API | **adaptation** — add second constructor overload |
+| `fdmblackscholesmesher.cpp` | present | **adaptation** — add multi-point grid concentration logic |
+
+### Dependency Chain Depth: 1
+The mesher is a leaf dependency — used by engines and solvers but depends only on `Fdm1dMesher` and `Concentrating1dMesher`, both of which exist in v1.23.
+
+### Backport Verdict
+**Adaptation of 2 existing files.** The new constructor requires a new grid-building loop that handles multiple concentration points. The underlying `Concentrating1dMesher` exists in v1.23, so the adaptation is bounded.
+
+---
+
 ## Aggregate Analysis
 
 ### Total Files Touched
@@ -127,8 +150,8 @@ Standalone utility, but required by Capability 1 (ExponentialFitting code path i
 | Classification | Count | Files |
 |---------------|-------|-------|
 | New files (transplant) | 5 | `fdmblackscholesspatialdesc.hpp`, `fdmhyperboliccot.hpp`, `fdmmatrixdiagnostic.hpp`, `fdmdiscretebarrierstepcondition.hpp`, `fdmdiscretebarrierstepcondition.cpp` |
-| Existing files (adaptation) | 6 | `fdmblackscholesop.hpp`, `fdmblackscholesop.cpp`, `fdmblackscholessolver.hpp`, `fdmblackscholessolver.cpp`, `fdblackscholesbarrierengine.hpp`, `fdblackscholesbarrierengine.cpp` |
-| **Total** | **11** | — |
+| Existing files (adaptation) | 8 | `fdmblackscholesop.{hpp,cpp}`, `fdmblackscholessolver.{hpp,cpp}`, `fdblackscholesbarrierengine.{hpp,cpp}`, `fdmblackscholesmesher.{hpp,cpp}` |
+| **Total** | **13** | — |
 
 ### Dependency Structure
 
@@ -160,9 +183,10 @@ The dependency chain is **linear and deep** (depth 5 from spatial descriptor to 
 
 The minimum credible backport to enable paper replication on v1.23 requires:
 - **5 new physical files** (transplant from QuantLib_huatai)
-- **6 existing files modified** (constructor signatures, new code paths, dispatch logic)
-- **11 total files touched**
+- **8 existing files modified** (constructor signatures, new code paths, dispatch logic, mesher adaptation)
+- **13 total files touched**
 - **Dependency chain depth of 5** (spatial desc → operator → solver → engine → step condition)
+- **Mesher adaptation** adds 2 more files for multi-point grid concentration
 
 This substantially recapitulates the same module set and dependency structure as the QuantLib_huatai research branch. The backport IS the upgrade, just applied selectively rather than wholesale.
 
