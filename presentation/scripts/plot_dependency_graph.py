@@ -37,7 +37,7 @@ def main():
     # Use graphviz layout if available, else spring layout
     try:
         pos = nx.nx_agraph.graphviz_layout(G, prog='dot')
-    except (ImportError, Exception):
+    except Exception:
         pos = nx.spring_layout(G, k=2.5, iterations=100, seed=42)
 
     fig, ax = plt.subplots(figsize=(8.0, 10.0))

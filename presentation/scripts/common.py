@@ -42,12 +42,11 @@ __all__ = [
     'REQUIRED_META',
     'HEATMAP_COLORS', 'NODE_COLORS',
     'plt', 'np', 'Path',
-    'SCRIPT_DIR', 'DATA_DIR', 'HUATAI_DATA_DIR', 'FIG_DIR',
+    'SCRIPT_DIR', 'HUATAI_DATA_DIR', 'FIG_DIR',
     'PRESENTATION_DATA_DIR',
 ]
 
 SCRIPT_DIR = Path(__file__).resolve().parent
-DATA_DIR = SCRIPT_DIR.parent / 'data'
 HUATAI_DATA_DIR = _RESULTS_DIR / 'data'
 FIG_DIR = SCRIPT_DIR.parent / 'figures'
 PRESENTATION_DATA_DIR = SCRIPT_DIR.parent / 'data'

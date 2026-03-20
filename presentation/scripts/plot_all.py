@@ -20,18 +20,19 @@ FIG_DIR = PRESENTATION_DIR / 'figures'
 HUATAI_RESULTS_DIR = PRESENTATION_DIR.parent / 'QuantLib_huatai' / 'results'
 HUATAI_FIG_DIR = HUATAI_RESULTS_DIR / 'figures'
 
-# Mapping from existing figure filenames to presentation figure filenames
-EXISTING_FIGURES = {
-    'fig1_cn_oscillations.pdf': 'fig1_cn_oscillations.pdf',
-    'fig2_three_scheme_truncated.pdf': 'fig2_three_scheme_truncated.pdf',
-    'fig3_barrier_moderate.pdf': 'fig3_barrier_moderate.pdf',
-    'fig4_barrier_lowvol.pdf': 'fig4_barrier_lowvol.pdf',
-    'fig5_convergence.pdf': 'fig5_convergence.pdf',
-    'fig6_effective_diffusion.pdf': 'fig6_effective_diffusion.pdf',
-    'fig7_mmatrix.pdf': 'fig7_mmatrix.pdf',
-    'fig8_benchmark.pdf': 'fig8_benchmark.pdf',
-    'fig9_xcothx.pdf': 'fig9_xcothx.pdf',
-}
+# Figures produced by the existing QuantLib_huatai pipeline (filenames are
+# identical in both the source and presentation directories).
+EXISTING_FIGURES = [
+    'fig1_cn_oscillations.pdf',
+    'fig2_three_scheme_truncated.pdf',
+    'fig3_barrier_moderate.pdf',
+    'fig4_barrier_lowvol.pdf',
+    'fig5_convergence.pdf',
+    'fig6_effective_diffusion.pdf',
+    'fig7_mmatrix.pdf',
+    'fig8_benchmark.pdf',
+    'fig9_xcothx.pdf',
+]
 
 
 def generate_existing_figures():
@@ -51,9 +52,9 @@ def generate_existing_figures():
 
     # Copy figures to presentation directory
     FIG_DIR.mkdir(parents=True, exist_ok=True)
-    for src_name, dst_name in EXISTING_FIGURES.items():
-        src = HUATAI_FIG_DIR / src_name
-        dst = FIG_DIR / dst_name
+    for name in EXISTING_FIGURES:
+        src = HUATAI_FIG_DIR / name
+        dst = FIG_DIR / name
         if not src.exists():
             print(f"Error: expected figure {src} not found", file=sys.stderr)
             sys.exit(1)
@@ -80,7 +81,7 @@ def generate_new_figures():
 
 def verify_all_figures():
     """Verify all 11 figure PDFs exist and are non-empty."""
-    expected = list(EXISTING_FIGURES.values()) + [
+    expected = EXISTING_FIGURES + [
         'fig10_feature_matrix.pdf',
         'fig11_dependency_graph.pdf',
     ]
