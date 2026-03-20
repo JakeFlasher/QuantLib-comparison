@@ -31,7 +31,7 @@ int main() {
         const Real r     = 0.05;
         const Real K     = 50.0;
         const Real T     = 5.0 / 12.0;
-        const Size xGrid = 400;
+        const Size xGrid = 200;
         const Size tGrid = 25;
 
         Date today(28, March, 2004);
