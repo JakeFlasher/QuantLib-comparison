@@ -7,7 +7,15 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
-BUILD_DIR="${REPO_ROOT}/build"
+
+# Auto-detect comparison test build directory
+if [ -d "${REPO_ROOT}/comparison_tests/build" ]; then
+    BUILD_DIR="${REPO_ROOT}/comparison_tests/build"
+elif [ -d "${REPO_ROOT}/build" ]; then
+    BUILD_DIR="${REPO_ROOT}/build"
+else
+    BUILD_DIR=""
+fi
 
 SKIP_CTEST=false
 SKIP_FIGURES=false
@@ -27,11 +35,13 @@ echo ""
 # Stage 1: CTest verification (optional)
 if [ "$SKIP_CTEST" = false ]; then
     echo "--- Stage 1: CTest Verification ---"
-    if [ ! -d "${BUILD_DIR}" ]; then
-        echo "Error: Build directory ${BUILD_DIR} not found."
-        echo "Run: cmake -S comparison_tests -B build && cmake --build build"
+    if [ -z "${BUILD_DIR}" ] || [ ! -d "${BUILD_DIR}" ]; then
+        echo "Error: No CTest build directory found."
+        echo "Searched: ${REPO_ROOT}/comparison_tests/build, ${REPO_ROOT}/build"
+        echo "Run: cmake -S comparison_tests -B comparison_tests/build && cmake --build comparison_tests/build"
         exit 1
     fi
+    echo "Using build directory: ${BUILD_DIR}"
     ctest --test-dir "${BUILD_DIR}" --output-on-failure
     echo "CTest: all tests passed."
     echo ""

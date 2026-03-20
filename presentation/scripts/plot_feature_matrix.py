@@ -3,37 +3,15 @@
 
 import json
 import sys
-from pathlib import Path
 
-import matplotlib
-matplotlib.use('Agg')
-import matplotlib.pyplot as plt
 import matplotlib.colors as mcolors
-import numpy as np
+from matplotlib.patches import Patch
 
-# Apply publication-quality settings
-plt.rcParams.update({
-    'font.family': 'serif',
-    'font.size': 10,
-    'axes.labelsize': 11,
-    'axes.titlesize': 12,
-    'legend.fontsize': 8,
-    'xtick.labelsize': 9,
-    'ytick.labelsize': 9,
-    'figure.dpi': 300,
-    'savefig.dpi': 300,
-    'savefig.bbox': 'tight',
-    'pdf.fonttype': 42,
-    'ps.fonttype': 42,
-})
-
-SCRIPT_DIR = Path(__file__).resolve().parent
-DATA_DIR = SCRIPT_DIR.parent / 'data'
-FIG_DIR = SCRIPT_DIR.parent / 'figures'
+from common import plt, np, FIG_DIR, PRESENTATION_DATA_DIR, HEATMAP_COLORS
 
 
 def main():
-    json_path = DATA_DIR / 'feature_matrix.json'
+    json_path = PRESENTATION_DATA_DIR / 'feature_matrix.json'
     if not json_path.exists():
         print(f"Error: {json_path} not found", file=sys.stderr)
         sys.exit(1)
@@ -52,20 +30,22 @@ def main():
         [status_map[c['huatai']] for c in caps],
     ]).T  # shape: (n_caps, 2)
 
-    # Colorblind-safe: absent=red-ish, partial=yellow-ish, native=green-ish
-    cmap = mcolors.ListedColormap(['#D55E00', '#E69F00', '#009E73'])
+    cmap = mcolors.ListedColormap([
+        HEATMAP_COLORS['absent'],
+        HEATMAP_COLORS['partial'],
+        HEATMAP_COLORS['native'],
+    ])
     bounds = [-0.5, 0.5, 1.5, 2.5]
     norm = mcolors.BoundaryNorm(bounds, cmap.N)
 
     fig, ax = plt.subplots(figsize=(5.5, 5.0))
-    im = ax.imshow(matrix, cmap=cmap, norm=norm, aspect='auto')
+    ax.imshow(matrix, cmap=cmap, norm=norm, aspect='auto')
 
     ax.set_xticks([0, 1])
     ax.set_xticklabels(versions, fontsize=10)
     ax.set_yticks(range(len(labels)))
     ax.set_yticklabels(labels, fontsize=9)
 
-    # Annotate each cell
     status_labels = {0: 'Absent', 1: 'Partial', 2: 'Native'}
     for i in range(len(labels)):
         for j in range(2):
@@ -77,12 +57,10 @@ def main():
     ax.set_title('Feature Matrix: QuantLib v1.23 vs v1.42-dev', fontsize=12)
     ax.tick_params(top=True, bottom=False, labeltop=True, labelbottom=False)
 
-    # Legend as color patches
-    from matplotlib.patches import Patch
     legend_elements = [
-        Patch(facecolor='#009E73', label='Native'),
-        Patch(facecolor='#E69F00', label='Partial workaround'),
-        Patch(facecolor='#D55E00', label='Absent'),
+        Patch(facecolor=HEATMAP_COLORS['native'], label='Native'),
+        Patch(facecolor=HEATMAP_COLORS['partial'], label='Partial workaround'),
+        Patch(facecolor=HEATMAP_COLORS['absent'], label='Absent'),
     ]
     ax.legend(handles=legend_elements, loc='lower center',
               bbox_to_anchor=(0.5, -0.12), ncol=3, fontsize=8)

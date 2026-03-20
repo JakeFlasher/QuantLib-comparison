@@ -192,6 +192,31 @@
       "ctest": "mmatrix_diagnostic_huatai",
       "source": "comparison_tests/results/comparison_report.md"
     },
+    "mt_min_value": {
+      "statement": "MilevTaglianiCN minimum V = 2.8e-53 on truncated call (strict positivity)",
+      "ctest": "positivity_huatai",
+      "source": "comparison_tests/results/comparison_report.md"
+    },
+    "finegrid_reference": {
+      "statement": "Fine-grid reference: ExponentialFitting at xGrid=6400 for accuracy comparison",
+      "ctest": "positivity_huatai",
+      "source": "comparison_tests/results/comparison_report.md"
+    },
+    "moderate_vol_price_agreement": {
+      "statement": "All 3 schemes produce identical prices at moderate vol (0.236266 at S=K=100, xGrid=2000)",
+      "ctest": "discrete_barrier_huatai",
+      "source": "QuantLib_huatai/results/data/barrier_moderate_vol_StandardCentral.csv"
+    },
+    "sc_diffusion_constant": {
+      "statement": "StandardCentral effective diffusion sigma^2/2 = 5e-7 at sigma=0.001",
+      "ctest": null,
+      "source": "mathematical derivation from sigma=0.001"
+    },
+    "feature_matrix_summary": {
+      "statement": "5 of 9 capabilities absent in v1.23, 3 partial, 1 native both",
+      "ctest": null,
+      "source": "comparison_tests/phase4_analysis/feature_matrix.md"
+    },
     "backport_scope": {
       "statement": "Minimum backport requires 13 files, dependency depth 5",
       "ctest": null,

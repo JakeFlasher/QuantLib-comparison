@@ -23,11 +23,24 @@ from plot_figures import (
     REQUIRED_META
 )
 
+# Extra colors for infrastructure figures (not in the upstream palette)
+HEATMAP_COLORS = {
+    'absent': '#D55E00',
+    'partial': '#E69F00',
+    'native': '#009E73',
+}
+
+NODE_COLORS = {
+    'new': '#009E73',
+    'adapted': '#D55E00',
+}
+
 # Re-export everything for convenient import by other scripts
 __all__ = [
     'COLORS', 'STYLES', 'LABELS', 'SCHEME_ORDER',
     'read_csv', 'validate_meta', 'to_float_arrays', 'save_pdf',
     'REQUIRED_META',
+    'HEATMAP_COLORS', 'NODE_COLORS',
     'plt', 'np', 'Path',
     'SCRIPT_DIR', 'DATA_DIR', 'HUATAI_DATA_DIR', 'FIG_DIR',
     'PRESENTATION_DATA_DIR',

@@ -3,12 +3,6 @@
 
 import json
 import sys
-from pathlib import Path
-
-import matplotlib
-matplotlib.use('Agg')
-import matplotlib.pyplot as plt
-import numpy as np
 
 try:
     import networkx as nx
@@ -17,33 +11,13 @@ except ImportError:
           file=sys.stderr)
     sys.exit(1)
 
-# Apply publication-quality settings
-plt.rcParams.update({
-    'font.family': 'serif',
-    'font.size': 10,
-    'axes.labelsize': 11,
-    'axes.titlesize': 12,
-    'legend.fontsize': 8,
-    'figure.dpi': 300,
-    'savefig.dpi': 300,
-    'savefig.bbox': 'tight',
-    'pdf.fonttype': 42,
-    'ps.fonttype': 42,
-})
+from matplotlib.patches import Patch
 
-SCRIPT_DIR = Path(__file__).resolve().parent
-DATA_DIR = SCRIPT_DIR.parent / 'data'
-FIG_DIR = SCRIPT_DIR.parent / 'figures'
-
-# Colorblind-safe: new=green, adapted=orange
-NODE_COLORS = {
-    'new': '#009E73',
-    'adapted': '#D55E00',
-}
+from common import plt, FIG_DIR, PRESENTATION_DATA_DIR, NODE_COLORS
 
 
 def main():
-    json_path = DATA_DIR / 'dependency_graph.json'
+    json_path = PRESENTATION_DATA_DIR / 'dependency_graph.json'
     if not json_path.exists():
         print(f"Error: {json_path} not found", file=sys.stderr)
         sys.exit(1)
@@ -83,10 +57,11 @@ def main():
     ax.set_title('Backport Dependency Graph\n(5 new files, 8 adapted, depth 5)',
                  fontsize=12)
 
-    from matplotlib.patches import Patch
     legend_elements = [
-        Patch(facecolor='#009E73', edgecolor='black', label='New (transplant)'),
-        Patch(facecolor='#D55E00', edgecolor='black', label='Adapted (existing)'),
+        Patch(facecolor=NODE_COLORS['new'], edgecolor='black',
+              label='New (transplant)'),
+        Patch(facecolor=NODE_COLORS['adapted'], edgecolor='black',
+              label='Adapted (existing)'),
     ]
     ax.legend(handles=legend_elements, loc='lower right', fontsize=9)
     ax.axis('off')
