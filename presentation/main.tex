@@ -25,7 +25,7 @@
 \title{Infrastructure Requirements for Nonstandard Finite Difference Schemes\\
        in QuantLib: A Comparison of v1.23 and v1.42-dev}
 
-\author{Generated from CTest-Verified Comparison Results}
+\author{Generated from Verified Comparison Artifacts}
 
 \date{}
 
@@ -39,9 +39,12 @@ lacks the infrastructure to support nonstandard finite difference schemes
 for Black--Scholes PDE pricing. Three spatial discretization schemes are
 examined: StandardCentral (baseline Crank--Nicolson), ExponentialFitting
 \cite{Duffy2004}, and MilevTaglianiCNEffectiveDiffusion (hereafter
-MilevTaglianiCN) \cite{MilevTagliani2010a,MilevTagliani2010b}. All
-claims are backed by 13 passing CTest entries from a dual-version CMake
-build. We show that 5 of 9 key capabilities are absent in v1.23, and
+MilevTaglianiCN) \cite{MilevTagliani2010a,MilevTagliani2010b}.
+Numerical figures are generated from CSV artifacts produced by the
+QuantLib\_huatai data pipeline, and the underlying code is independently
+validated by 13 passing CTest entries from a dual-version CMake build.
+Infrastructure analyses are backed by document and code review artifacts.
+We show that 5 of 9 key capabilities are absent in v1.23, and
 that a minimum backport requires 13 files across a dependency chain of
 depth~5, substantially recapitulating the research branch module structure.
 \end{abstract}

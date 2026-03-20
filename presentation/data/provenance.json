@@ -249,8 +249,8 @@
       "source": "QuantLib_huatai/results/data/mmatrix_offdiag_MilevTaglianiCN.csv"
     },
     "sc_diffusion_constant": {
-      "statement": "StandardCentral effective diffusion sigma^2/2 = 5e-7 at sigma=0.001",
-      "source": "mathematical derivation: (0.001)^2 / 2 = 5e-7"
+      "statement": "StandardCentral effective diffusion sigma^2/2 = 5e-7 at sigma=0.001 (CSV aUsed column confirms 5.00000000000001e-07)",
+      "source": "QuantLib_huatai/results/data/effective_diffusion_StandardCentral.csv"
     },
     "feature_matrix_summary": {
       "statement": "5 of 9 capabilities absent in v1.23, 3 partial, 1 native both",
