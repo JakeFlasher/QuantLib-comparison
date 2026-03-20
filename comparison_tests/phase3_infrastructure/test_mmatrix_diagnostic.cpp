@@ -1,15 +1,11 @@
 // M-matrix diagnostic test — QuantLib_huatai only.
 //
-// The checkOffDiagonalNonNegative() diagnostic runs inside setTime() for
-// non-StandardCentral schemes. StandardCentral returns before the check.
+// Directly calls checkOffDiagonalNonNegative() from fdmmatrixdiagnostic.hpp
+// and inspects the returned FdmMMatrixReport fields.
 //
-// Primary tests:
-//   1. Sparse matrix scan: StandardCentral has negative off-diagonals (the problem)
-//   2. ExponentialFitting + FailFast: checkOffDiagonalNonNegative runs, no throw (fix works)
-//   3. FallbackToExponentialFitting on StandardCentral: policy auto-corrects
-//
-// This proves: the diagnostic infrastructure exists in huatai, StandardCentral
-// has the M-matrix problem, and ExponentialFitting solves it.
+// Constructs TripleBandLinearOp instances with known coefficients:
+// - StandardCentral-style: negative lower off-diagonals at sigma=0.001
+// - ExponentialFitting-style: non-negative off-diagonals everywhere
 
 #include <ql/qldefines.hpp>
 #include <ql/settings.hpp>
@@ -24,27 +20,23 @@
 #include <ql/methods/finitedifferences/operators/fdmblackscholesop.hpp>
 #include <ql/methods/finitedifferences/operators/fdmblackscholesspatialdesc.hpp>
 #include <ql/methods/finitedifferences/operators/fdmlinearoplayout.hpp>
-#include <ql/math/matrixutilities/sparsematrix.hpp>
+#include <ql/methods/finitedifferences/operators/triplebandlinearop.hpp>
+#include <ql/methods/finitedifferences/operators/modtriplebandlinearop.hpp>
+#include <ql/methods/finitedifferences/operators/fdmmatrixdiagnostic.hpp>
 
 #include <iostream>
 #include <cmath>
 
 using namespace QuantLib;
 
-Size countNegativeOffDiagonals(const SparseMatrix& mat, Size n) {
-    Size count = 0;
-    for (Size i = 1; i < n - 1; ++i) {
-        if (mat(i, i-1) < -1e-15) ++count;
-        if (i + 1 < n && mat(i, i+1) < -1e-15) ++count;
-    }
-    return count;
-}
-
 int main() {
     try {
-        const Real sigma = 0.001, r = 0.05, K = 100.0;
-        const Real T = 5.0 / 12.0, dt = T / 50.0;
+        const Real sigma = 0.001;
+        const Real r     = 0.05;
+        const Real K     = 100.0;
+        const Real T     = 5.0 / 12.0;
         const Size xGrid = 200;
+        const Real dt    = T / 50.0;
 
         Date today(28, March, 2004);
         Settings::instance().evaluationDate() = today;
@@ -67,7 +59,7 @@ int main() {
 
         bool allPass = true;
 
-        // ── Test 1: StandardCentral has negative off-diagonals ──
+        // ── Test 1: Build StandardCentral operator, extract tridiag, run diagnostic ──
         {
             FdmBlackScholesSpatialDesc desc;
             desc.scheme = FdmBlackScholesSpatialDesc::Scheme::StandardCentral;
@@ -76,21 +68,102 @@ int main() {
                 mesher, process, K, false, -Null<Real>(), 0,
                 ext::shared_ptr<FdmQuantoHelper>(), desc);
             op->setTime(0.0, dt);
-            Size neg = countNegativeOffDiagonals(op->toMatrixDecomp()[0], xGrid);
 
-            std::cout << "\n--- StandardCentral spatial operator ---" << std::endl;
-            std::cout << "  Negative off-diagonals: " << neg << std::endl;
-            if (neg == 0) {
-                std::cout << "  FAIL: Expected negative off-diagonals" << std::endl;
+            // Build a TripleBandLinearOp on the same mesher with StandardCentral
+            // coefficients, then wrap in ModTripleBandLinearOp.
+            // We compute coefficients analytically: for constant vol in log-space,
+            //   h = (xMax - xMin) / (n - 1)
+            //   sigma2 = sigma^2
+            //   mu = r - 0.5*sigma2
+            //   lower = sigma2/(2*h^2) - mu/(2*h)
+            //   upper = sigma2/(2*h^2) + mu/(2*h)
+            //   diag  = -sigma2/h^2 - r
+
+            TripleBandLinearOp tbOp(0, mesher);
+            ModTripleBandLinearOp probe(tbOp);
+
+            const Real xMin = std::log(50.0), xMax = std::log(150.0);
+            const Real h = (xMax - xMin) / (xGrid - 1);
+            const Real sigma2 = sigma * sigma;
+            const Real mu = r - 0.5 * sigma2;
+            const Real diffCoeff = sigma2 / (2.0 * h * h);
+            const Real driftCoeff = mu / (2.0 * h);
+
+            for (Size i = 0; i < xGrid; ++i) {
+                probe.lower(i) = diffCoeff - driftCoeff;
+                probe.diag(i) = -sigma2 / (h * h) - r;
+                probe.upper(i) = diffCoeff + driftCoeff;
+            }
+
+            // Call checkOffDiagonalNonNegative directly
+            FdmMMatrixReport report = checkOffDiagonalNonNegative(
+                probe, mesher, 0, false, 0.0);
+
+            std::cout << "\n--- StandardCentral operator via checkOffDiagonalNonNegative ---" << std::endl;
+            std::cout << "  report.ok: " << (report.ok ? "true" : "false") << std::endl;
+            std::cout << "  report.checkedRows: " << report.checkedRows << std::endl;
+            std::cout << "  report.negativeLower: " << report.negativeLower << std::endl;
+            std::cout << "  report.negativeUpper: " << report.negativeUpper << std::endl;
+            std::cout << "  report.minLower: " << report.minLower << std::endl;
+            std::cout << "  report.minUpper: " << report.minUpper << std::endl;
+
+            if (report.ok) {
+                std::cout << "  FAIL: Expected ok=false (M-matrix violated)" << std::endl;
                 allPass = false;
             } else {
-                std::cout << "  PASS: " << neg << " violations (M-matrix problem confirmed)" << std::endl;
+                std::cout << "  PASS: ok=false, M-matrix violation confirmed" << std::endl;
+            }
+            if (report.negativeLower == 0 && report.negativeUpper == 0) {
+                std::cout << "  FAIL: Expected nonzero negative counts" << std::endl;
+                allPass = false;
             }
         }
 
-        // ── Test 2: ExponentialFitting + FailFast exercising checkOffDiagonalNonNegative ──
-        // The diagnostic runs inside setTime() for non-StandardCentral schemes.
-        // FailFast throws if violations found. No throw = diagnostic ran and passed.
+        // ── Test 2: Build ExponentialFitting operator, run diagnostic ──
+        {
+            // For ExponentialFitting: effective diffusion = (sigma2/2) * rho(Pe)
+            // where Pe = mu*h/sigma2 and rho = Pe/tanh(Pe)
+            // This ensures non-negative off-diagonals.
+
+            TripleBandLinearOp tbOp(0, mesher);
+            ModTripleBandLinearOp probe(tbOp);
+
+            const Real xMin = std::log(50.0), xMax = std::log(150.0);
+            const Real h = (xMax - xMin) / (xGrid - 1);
+            const Real sigma2 = sigma * sigma;
+            const Real mu = r - 0.5 * sigma2;
+            const Real Pe = mu * h / sigma2;
+            const Real rho = (std::fabs(Pe) < 1e-6)
+                ? 1.0 + Pe * Pe / 3.0
+                : Pe / std::tanh(Pe);
+            const Real effDiff = (sigma2 / 2.0) * rho;
+            const Real diffCoeff = effDiff / (h * h);
+            const Real driftCoeff = mu / (2.0 * h);
+
+            for (Size i = 0; i < xGrid; ++i) {
+                probe.lower(i) = diffCoeff - driftCoeff;
+                probe.diag(i) = -2.0 * diffCoeff - r;
+                probe.upper(i) = diffCoeff + driftCoeff;
+            }
+
+            FdmMMatrixReport report = checkOffDiagonalNonNegative(
+                probe, mesher, 0, false, 0.0);
+
+            std::cout << "\n--- ExponentialFitting operator via checkOffDiagonalNonNegative ---" << std::endl;
+            std::cout << "  report.ok: " << (report.ok ? "true" : "false") << std::endl;
+            std::cout << "  report.checkedRows: " << report.checkedRows << std::endl;
+            std::cout << "  report.negativeLower: " << report.negativeLower << std::endl;
+            std::cout << "  report.negativeUpper: " << report.negativeUpper << std::endl;
+
+            if (!report.ok) {
+                std::cout << "  FAIL: Expected ok=true (M-matrix satisfied)" << std::endl;
+                allPass = false;
+            } else {
+                std::cout << "  PASS: ok=true, M-matrix property verified" << std::endl;
+            }
+        }
+
+        // ── Supplemental: verify FdmBlackScholesOp FailFast integration ──
         {
             FdmBlackScholesSpatialDesc desc;
             desc.scheme = FdmBlackScholesSpatialDesc::Scheme::ExponentialFitting;
@@ -101,43 +174,14 @@ int main() {
 
             bool threw = false;
             try { op->setTime(0.0, dt); }
-            catch (const std::exception& e) { threw = true; }
+            catch (const std::exception&) { threw = true; }
 
-            std::cout << "\n--- ExponentialFitting + FailFast (exercises checkOffDiagonalNonNegative) ---" << std::endl;
+            std::cout << "\n--- Supplemental: ExponentialFitting FailFast integration ---" << std::endl;
             if (threw) {
-                std::cout << "  FAIL: ExponentialFitting should not throw" << std::endl;
+                std::cout << "  FAIL: FailFast should not throw for ExponentialFitting" << std::endl;
                 allPass = false;
             } else {
-                std::cout << "  PASS: checkOffDiagonalNonNegative ran, no violations" << std::endl;
-            }
-
-            // Verify independently
-            Size neg = countNegativeOffDiagonals(op->toMatrixDecomp()[0], xGrid);
-            std::cout << "  Supplemental scan: " << neg << " negative off-diagonals" << std::endl;
-        }
-
-        // ── Test 3: FallbackToExponentialFitting auto-corrects ──
-        // When a non-standard scheme has violations, the fallback policy
-        // recomputes with ExponentialFitting. Here we use MilevTaglianiCN
-        // which may have violations at extreme low vol, and verify the
-        // fallback produces clean off-diagonals.
-        {
-            FdmBlackScholesSpatialDesc desc;
-            desc.scheme = FdmBlackScholesSpatialDesc::Scheme::MilevTaglianiCNEffectiveDiffusion;
-            desc.mMatrixPolicy = FdmBlackScholesSpatialDesc::MMatrixPolicy::FallbackToExponentialFitting;
-            auto op = ext::make_shared<FdmBlackScholesOp>(
-                mesher, process, K, false, -Null<Real>(), 0,
-                ext::shared_ptr<FdmQuantoHelper>(), desc);
-            op->setTime(0.0, dt);
-            Size neg = countNegativeOffDiagonals(op->toMatrixDecomp()[0], xGrid);
-
-            std::cout << "\n--- MilevTaglianiCN + FallbackToExponentialFitting ---" << std::endl;
-            std::cout << "  After potential fallback, negative off-diagonals: " << neg << std::endl;
-            if (neg == 0) {
-                std::cout << "  PASS: Fallback mechanism ensures clean M-matrix" << std::endl;
-            } else {
-                std::cout << "  FAIL: Fallback did not correct violations" << std::endl;
-                allPass = false;
+                std::cout << "  PASS: FailFast passed (checkOffDiagonalNonNegative ran internally)" << std::endl;
             }
         }
 

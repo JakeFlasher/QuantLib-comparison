@@ -1,7 +1,7 @@
-// Truncated call oscillation test — compiles against v1.23 OR QuantLib_huatai.
-// On both versions: StandardCentral produces V < -1e-10 at low vol.
-// Uses FdmBackwardSolver + raw rollback array to avoid interpolation smoothing.
-// Parameters: sigma=0.001, r=0.05, K=50, U=70, T=5/12, xGrid=400, tGrid=25
+// Truncated call oscillation test.
+// Source-compatible with both v1.23 and QuantLib_huatai (1.42-dev).
+// StandardCentral produces V < -1e-10 at low vol (sigma=0.001).
+// Parameters: sigma=0.001, r=0.05, K=50, U=70, T=5/12, xGrid=200
 
 #include <ql/qldefines.hpp>
 #include <ql/settings.hpp>
@@ -54,11 +54,16 @@ int main() {
         auto mesher = ext::make_shared<FdmMesherComposite>(
             ext::make_shared<Uniform1dMesher>(xMin, xMax, xGrid));
 
-        // Build truncated call payoff on the grid: max(S-K,0) for S<=U, 0 otherwise
+        // Build truncated call payoff: max(S-K,0) for S<=U, 0 otherwise
         auto payoff = ext::make_shared<PlainVanillaPayoff>(Option::Call, K);
         const Real U = 70.0;
         Array rhs(mesher->layout()->size());
-        for (const auto& iter : *(mesher->layout())) {
+
+        // v1.23-compatible iteration (no range-based for on layout)
+        const ext::shared_ptr<FdmLinearOpLayout> layout = mesher->layout();
+        const FdmLinearOpIterator endIter = layout->end();
+        for (FdmLinearOpIterator iter = layout->begin();
+             iter != endIter; ++iter) {
             const Real x = mesher->location(iter, 0);
             const Real S = std::exp(x);
             rhs[iter.index()] = (S <= U) ? (*payoff)(S) : 0.0;
@@ -75,7 +80,6 @@ int main() {
             std::list<std::vector<Time>>(),
             FdmStepConditionComposite::Conditions());
 
-        // Build operator — v1.23 has no spatialDesc parameter
         auto op = ext::make_shared<FdmBlackScholesOp>(
             mesher, process, K);
 

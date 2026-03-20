@@ -2,71 +2,69 @@
 
 ## Executive Summary
 
-Stock QuantLib v1.23 does not natively support the nonstandard finite difference scheme research implemented in QuantLib_huatai (1.42-dev). This is demonstrated through 12 passing tests: 7 compile-fail/absence tests against v1.23 headers, and 5 runtime tests on QuantLib_huatai showing the research capabilities work. The v1.23 library itself cannot be built on the available toolchain (GCC 15.2.1 + Boost 1.89.0), which is also verified by a dedicated test.
+Stock QuantLib v1.23 does not natively support the nonstandard finite difference scheme research implemented in QuantLib_huatai (1.42-dev). This is demonstrated through 12 passing tests: 7 compile-fail/absence tests against v1.23 headers, and 5 runtime tests on QuantLib_huatai. The v1.23 library cannot be built on either available compiler in this environment.
 
-## Test Results
+## Test Results (CTest-Verified)
 
-All results from `ctest --output-on-failure` in `comparison_tests/build`:
+All results from `ctest --output-on-failure` in `comparison_tests/build`.
+CTest compiler: `/opt/llvm21-mlir/bin/clang++` (Clang 21.1.8).
 
 ```
 12/12 tests passed, 0 failed
 ```
 
-### Phase 1: Compile-Fail / Absence Tests (v1.23 headers)
+### Compile-Fail / Absence Tests (v1.23 headers)
 
-| Test | Status | What it proves |
-|------|--------|---------------|
-| `v123_spatial_desc_missing` | PASS | `fdmblackscholesspatialdesc.hpp` absent — no scheme selection possible |
-| `v123_discrete_barrier_missing` | PASS | `fdmdiscretebarrierstepcondition.hpp` absent — header not found |
-| `v123_discrete_barrier_construct` | PASS | Cannot construct `FdmDiscreteBarrierStepCondition` — class absent |
-| `v123_mmatrix_diagnostic_missing` | PASS | `fdmmatrixdiagnostic.hpp` absent — no M-matrix diagnostic infrastructure |
-| `v123_mesher_multipoint_missing` | PASS | Multi-point `cPoints` constructor absent |
-| `v123_disposable_signature_mismatch` | PASS | With `QL_USE_DISPOSABLE`, `Array` return type mismatches `Disposable<Array>` base |
-| `v123_library_build_fails` | PASS | v1.23 library cannot be built on GCC 15.2.1 (`timeseries.hpp` `boost::mpl::if_` error) |
+| Test | What it proves |
+|------|---------------|
+| `v123_spatial_desc_missing` | `fdmblackscholesspatialdesc.hpp` absent — no scheme selection |
+| `v123_discrete_barrier_missing` | `fdmdiscretebarrierstepcondition.hpp` absent — header not found |
+| `v123_discrete_barrier_construct` | Cannot construct `FdmDiscreteBarrierStepCondition` — class absent |
+| `v123_mmatrix_diagnostic_missing` | `fdmmatrixdiagnostic.hpp` absent — no M-matrix diagnostic |
+| `v123_mesher_multipoint_missing` | Multi-point `cPoints` constructor absent |
+| `v123_disposable_signature_mismatch` | With `QL_USE_DISPOSABLE`, `Array` return mismatches `Disposable<Array>` |
+| `v123_library_build_fails` | v1.23 library build fails on the CTest compiler (Clang 21.1.8) |
 
-### Phase 2: Runtime Tests (QuantLib_huatai)
+### Runtime Tests (QuantLib_huatai)
 
-**Oscillation (AC-1)**: StandardCentral with sigma=0.001, r=0.05, K=50, U=70, T=5/12, xGrid=200:
-- Negative interior nodes: detected (V < -1e-10)
-- Confirms: StandardCentral oscillates at low vol
+**Oscillation (AC-1 partial)**: StandardCentral with sigma=0.001, r=0.05, K=50, U=70, T=5/12, xGrid=200:
+- Negative interior nodes detected (V < -1e-10)
+- *Note*: This verifies the oscillation on QuantLib_huatai's StandardCentral code path. The same behavior is *inferred* for v1.23 (identical algorithm), but not directly proven because the v1.23 library does not build on either available compiler. See "AC-1 Status" below.
 
-**Positivity (AC-2)**:
-- Low vol (sigma=0.001, xGrid=200): ExponentialFitting 0 negative nodes, MilevTaglianiCN 0 negative nodes
-- Moderate vol accuracy (sigma=0.20, xGrid=800): Both nonstandard schemes within 1% of fine-grid reference at strike
+**Positivity (AC-2)**: Both nonstandard schemes preserve positivity at sigma=0.001 and achieve <1% accuracy vs fine-grid reference at sigma=0.20.
 
-**Discrete Barrier (AC-3)**: K=100, L=95, U=110, 5 monitoring dates:
-- Moderate vol (sigma=0.25): All 3 schemes produce identical finite positive prices
-- Low vol (sigma=0.001): StandardCentral has 58 negative nodes; nonstandard schemes have 0
+**Discrete Barrier (AC-3)**: FdmDiscreteBarrierStepCondition successfully replicates Milev-Tagliani Example 4.1.
 
-### Phase 3: M-Matrix Diagnostic (AC-4)
+**M-Matrix Diagnostic (AC-4)**: `checkOffDiagonalNonNegative()` directly called on analytically constructed operators; `FdmMMatrixReport` fields verified.
 
-- StandardCentral spatial operator: 198 negative off-diagonals (M-matrix violated)
-- ExponentialFitting + FailFast policy: `checkOffDiagonalNonNegative()` runs, no exception (M-matrix satisfied)
-- MilevTaglianiCN + FallbackToExponentialFitting: 0 negative off-diagonals after fallback
+**Paper Replication**: Grid convergence confirmed; low-vol stress test passed.
 
-### Phase 5: Paper Replication
+## AC-1 Status: v1.23 Runtime Remains Unverified
 
-Grid convergence (sigma=0.25, T=0.5):
-| xGrid | Standard | ExpFitting | MilevTagliani |
-|-------|----------|------------|---------------|
-| 200 | 0.264874 | 0.264874 | 0.264872 |
-| 500 | 0.245054 | 0.245054 | 0.245054 |
-| 1000 | 0.238712 | 0.238712 | 0.238712 |
+The plan's AC-1 requires a v1.23 runtime test. This is currently blocked:
 
-Low-vol stress (sigma=0.001, T=1.0): StandardCentral 58 negative nodes; nonstandard 0.
+1. **Source compatibility**: `test_cn_oscillation.cpp` is now v1.23 source-compatible (verified via `clang++ -fsyntax-only -I QuantLib_v1.23`).
+2. **Library build failure**: v1.23 library cannot be built on either available compiler:
+   - Clang 21.1.8: `timeseries.hpp` template instantiation failure
+   - GCC 15.2.1: `timeseries.hpp:147 boost::mpl::if_` error
+3. **Inference**: The StandardCentral algorithm is identical in both versions (v1.23 `fdmblackscholesop.cpp` has the same single code path). The oscillation verified on QuantLib_huatai is therefore expected to reproduce on v1.23, but this has not been directly confirmed.
 
-## What Remains Unverified
+**AC-1 remains open** pending a compatible compiler or v1.23 library build workaround.
 
-**AC-1 on v1.23 runtime**: The plan specifies a v1.23 runtime test proving oscillations. This cannot be executed because v1.23 fails to build on the available toolchain. The oscillation behavior is verified on QuantLib_huatai (same StandardCentral code path). The v1.23 library build failure is independently verified by the `v123_library_build_fails` test.
+## v1.23 Build Failure Evidence
 
-## v1.23 Build Failure (Verified)
+### CTest-verified (Clang 21.1.8)
+The `v123_library_build_fails` test configures and attempts to build v1.23 using the CTest compiler (Clang 21.1.8). It fails as expected.
 
-```
-Compiler: g++ (GCC) 15.2.1 20260209
-Boost: 1.89.0
-Source: QuantLib v1.23 (tag QuantLib-v1.23, commit b6517ba10)
-Error: ql/timeseries.hpp:50: instantiating erroneous template
-       ql/timeseries.hpp:147: boost::mpl::if_ template failure
+### Manual reproduction (GCC 15.2.1)
+```bash
+cd QuantLib_v1.23/build
+cmake .. -DCMAKE_BUILD_TYPE=Release -DCMAKE_POLICY_VERSION_MINIMUM=3.5 \
+  -DCMAKE_CXX_COMPILER=/usr/bin/g++ -DCMAKE_CXX_FLAGS="-fpermissive -w" \
+  -DCMAKE_CXX_STANDARD=17
+cmake --build . -j$(nproc)
+# Error: ql/timeseries.hpp:50: instantiating erroneous template
+#        ql/timeseries.hpp:147: boost::mpl::if_
 ```
 
-This is verified by the `v123_library_build_fails` CTest entry.
+Both failures trace to `ql/timeseries.hpp` in the real v1.23 tag (`QuantLib-v1.23`, commit `b6517ba10`).
