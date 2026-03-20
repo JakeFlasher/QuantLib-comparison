@@ -1,0 +1,77 @@
+{
+  "capabilities": [
+    {
+      "id": 1,
+      "name": "StandardCentral FD scheme",
+      "short_name": "StandardCentral",
+      "v123": "native",
+      "huatai": "native"
+    },
+    {
+      "id": 2,
+      "name": "ExponentialFitting FD scheme",
+      "short_name": "ExponentialFitting",
+      "v123": "absent",
+      "huatai": "native"
+    },
+    {
+      "id": 3,
+      "name": "MilevTaglianiCN scheme",
+      "short_name": "MilevTaglianiCN",
+      "v123": "absent",
+      "huatai": "native"
+    },
+    {
+      "id": 4,
+      "name": "Discrete barrier step condition",
+      "short_name": "Discrete Barrier",
+      "v123": "absent",
+      "huatai": "native"
+    },
+    {
+      "id": 5,
+      "name": "M-matrix diagnostics",
+      "short_name": "M-matrix Diag.",
+      "v123": "absent",
+      "huatai": "native"
+    },
+    {
+      "id": 6,
+      "name": "Multi-point mesh concentration",
+      "short_name": "Multi-pt. Mesh",
+      "v123": "partial",
+      "huatai": "native"
+    },
+    {
+      "id": 7,
+      "name": "Operator band access",
+      "short_name": "Band Access",
+      "v123": "partial",
+      "huatai": "native"
+    },
+    {
+      "id": 8,
+      "name": "Solver CN-equivalence validation",
+      "short_name": "CN Validation",
+      "v123": "absent",
+      "huatai": "native"
+    },
+    {
+      "id": 9,
+      "name": "Disposable<> API compatibility",
+      "short_name": "Disposable<> API",
+      "v123": "partial",
+      "huatai": "native"
+    }
+  ],
+  "status_map": {
+    "native": 2,
+    "partial": 1,
+    "absent": 0
+  },
+  "summary": {
+    "native_both": 1,
+    "absent_v123": 5,
+    "partial_v123": 3
+  }
+}

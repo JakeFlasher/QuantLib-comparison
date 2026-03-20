@@ -1,0 +1,102 @@
+{
+  "nodes": [
+    {
+      "id": "fdmblackscholesspatialdesc.hpp",
+      "label": "FdmBlackScholes\nSpatialDesc",
+      "type": "new",
+      "description": "Scheme enum, policy types, factory methods"
+    },
+    {
+      "id": "fdmhyperboliccot.hpp",
+      "label": "FdmHyperbolicCot\n(xCothx)",
+      "type": "new",
+      "description": "Numerically stable x*coth(x) helper"
+    },
+    {
+      "id": "fdmmatrixdiagnostic.hpp",
+      "label": "FdmMatrixDiagnostic",
+      "type": "new",
+      "description": "M-matrix checking and reporting"
+    },
+    {
+      "id": "fdmblackscholesop.hpp",
+      "label": "FdmBlackScholesOp\n(header)",
+      "type": "adapted",
+      "description": "Add spatialDesc parameter to constructor"
+    },
+    {
+      "id": "fdmblackscholesop.cpp",
+      "label": "FdmBlackScholesOp\n(impl)",
+      "type": "adapted",
+      "description": "Restructure setTime(): 3 code paths + M-matrix"
+    },
+    {
+      "id": "fdmblackscholessolver.hpp",
+      "label": "FdmBlackScholes\nSolver (header)",
+      "type": "adapted",
+      "description": "Add spatialDesc parameter"
+    },
+    {
+      "id": "fdmblackscholessolver.cpp",
+      "label": "FdmBlackScholes\nSolver (impl)",
+      "type": "adapted",
+      "description": "CN-equivalence validation"
+    },
+    {
+      "id": "fdblackscholesbarrierengine.hpp",
+      "label": "FdBlackScholes\nBarrierEngine (hdr)",
+      "type": "adapted",
+      "description": "New constructors, dual-path dispatch"
+    },
+    {
+      "id": "fdblackscholesbarrierengine.cpp",
+      "label": "FdBlackScholes\nBarrierEngine (impl)",
+      "type": "adapted",
+      "description": "calculateDiscrete() method"
+    },
+    {
+      "id": "fdmdiscretebarrierstepcondition.hpp",
+      "label": "FdmDiscretBarrier\nStepCondition (hdr)",
+      "type": "new",
+      "description": "Discrete barrier monitoring"
+    },
+    {
+      "id": "fdmdiscretebarrierstepcondition.cpp",
+      "label": "FdmDiscreteBarrier\nStepCondition (impl)",
+      "type": "new",
+      "description": "Implementation with rebate support"
+    },
+    {
+      "id": "fdmblackscholesmesher.hpp",
+      "label": "FdmBlackScholes\nMesher (header)",
+      "type": "adapted",
+      "description": "Multi-point concentration constructor"
+    },
+    {
+      "id": "fdmblackscholesmesher.cpp",
+      "label": "FdmBlackScholes\nMesher (impl)",
+      "type": "adapted",
+      "description": "Multi-point grid concentration logic"
+    }
+  ],
+  "edges": [
+    {"from": "fdmblackscholesspatialdesc.hpp", "to": "fdmhyperboliccot.hpp"},
+    {"from": "fdmblackscholesspatialdesc.hpp", "to": "fdmmatrixdiagnostic.hpp"},
+    {"from": "fdmblackscholesspatialdesc.hpp", "to": "fdmblackscholesop.hpp"},
+    {"from": "fdmblackscholesop.hpp", "to": "fdmblackscholesop.cpp"},
+    {"from": "fdmblackscholesop.cpp", "to": "fdmblackscholessolver.hpp"},
+    {"from": "fdmblackscholessolver.hpp", "to": "fdmblackscholessolver.cpp"},
+    {"from": "fdmblackscholessolver.cpp", "to": "fdblackscholesbarrierengine.hpp"},
+    {"from": "fdblackscholesbarrierengine.hpp", "to": "fdblackscholesbarrierengine.cpp"},
+    {"from": "fdblackscholesbarrierengine.cpp", "to": "fdmdiscretebarrierstepcondition.hpp"},
+    {"from": "fdmdiscretebarrierstepcondition.hpp", "to": "fdmdiscretebarrierstepcondition.cpp"},
+    {"from": "fdblackscholesbarrierengine.cpp", "to": "fdmblackscholesmesher.hpp"},
+    {"from": "fdmblackscholesmesher.hpp", "to": "fdmblackscholesmesher.cpp"}
+  ],
+  "metadata": {
+    "total_files": 13,
+    "new_files": 5,
+    "adapted_files": 8,
+    "max_depth": 5
+  }
+}
