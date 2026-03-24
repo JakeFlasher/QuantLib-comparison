@@ -46,12 +46,12 @@ def main():
     labels = {n: node_info[n]['label'] for n in G.nodes()}
 
     nx.draw_networkx_nodes(G, pos, ax=ax, node_color=colors,
-                           node_size=2200, alpha=0.9, edgecolors='black',
+                           node_size=2500, alpha=0.9, edgecolors='black',
                            linewidths=0.8)
     nx.draw_networkx_labels(G, pos, ax=ax, labels=labels,
                             font_size=6, font_family='serif')
-    nx.draw_networkx_edges(G, pos, ax=ax, edge_color='gray', arrowstyle='-|>', 
-                           arrows=True, arrowsize=15, width=1.0,
+    nx.draw_networkx_edges(G, pos, ax=ax, edge_color='gray', arrowstyle='-|>', node_size=2500,  
+                           arrows=True, arrowsize=20, width=1.0,
                            connectionstyle='arc3,rad=0.2')
 
     ax.set_title('Backport Dependency Graph\n(5 new files, 8 adapted, depth 5)',
