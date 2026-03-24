@@ -23,7 +23,7 @@ def main():
     status_map = data['status_map']
 
     labels = [c['short_name'] for c in caps]
-    versions = ['v1.23', 'QuantLib_huatai\n(1.42-dev)']
+    versions = ['v1.42 dev', 'QuantLib_huatai\n(1.42-dev)']
 
     matrix = np.array([
         [status_map[c['v123']] for c in caps],
@@ -54,7 +54,7 @@ def main():
             ax.text(j, i, status_labels[val], ha='center', va='center',
                     fontsize=8, color=text_color, fontweight='bold')
 
-    ax.set_title('Feature Matrix: QuantLib v1.23 vs v1.42-dev', fontsize=12)
+    ax.set_title('Feature Matrix: QuantLib v1.42 vs Our Fork', fontsize=12)
     ax.tick_params(top=True, bottom=False, labeltop=True, labelbottom=False)
 
     legend_elements = [
