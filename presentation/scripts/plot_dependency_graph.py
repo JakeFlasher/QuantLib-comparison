@@ -52,7 +52,7 @@ def main():
                             font_size=6, font_family='serif')
     nx.draw_networkx_edges(G, pos, ax=ax, edge_color='gray',
                            arrows=True, arrowsize=15, width=1.0,
-                           connectionstyle='arc3,rad=0.5')
+                           connectionstyle='arc3,rad=3.5')
 
     ax.set_title('Backport Dependency Graph\n(5 new files, 8 adapted, depth 5)',
                  fontsize=12)
